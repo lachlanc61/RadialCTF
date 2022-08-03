@@ -4,7 +4,6 @@ import matplotlib.colors as colors
 import matplotlib.cm as cmx
 from decimal import *
 import cv2
-import sys
 import os
 import glob
 import scipy.signal as scs
