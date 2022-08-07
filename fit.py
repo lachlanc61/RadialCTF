@@ -21,15 +21,17 @@ odirname='out'      #output directory relative to script
 #fitting
 pfprom=10       #prominence threshold for peak fit (default=10)
 widthguess=50   #initial guess for peak widths
-centrex=256 #beam centre position x 182 185
-centrey=256 #beam centre position y 183
+centrex=167 #beam centre position x 167 y 167 for iso2.tif
+centrey=167 #beam centre position 256/256 for carlos images
+
+#167-8x 175-6y
 
 #radial params
-centrecut=5     #minimum radius (centre mask)
-radcut=250      #maximum radius
-secwidth=90     #width of sector
+centrecut=10     #minimum radius (centre mask)
+radcut=150      #maximum radius
+secwidth=180     #width of sector
 secmid=0        #centre of first sector
-secstep=45      #step between sectors
+secstep=180      #step between sectors
 
 #figure params
 colourmap='Set1'    #colourmap for figure
@@ -44,6 +46,15 @@ bwidth = 1  #default border width
 #-------------------------------------
 #FUNCTIONS
 #-----------------------------------
+
+#rotate image
+#not used currently - alternative to rotating mask
+def rotate_image(image, angle):
+  image_center = tuple(np.array(image.shape[1::-1]) / 2)
+  rot_mat = cv2.getRotationMatrix2D(image_center, angle, 1.0)
+  result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
+  return result
+
 
 #Generate a radial profile
 def radial_profile(data, center):
@@ -102,6 +113,13 @@ def sector_mask(shape,centre,radius,angle_range):
     
     return circmask*anglemask
 
+
+
+def ctfmodel(x, amp, Cs, wl, dz, dec, c):
+    y = np.zeros_like(x)
+    y=-amp*(1/(dec*k))*np.sin( (np.pi/2)*(Cs*wl**3*x**4 - 2*dz*wl*x**2))+c
+    return y
+
 #-----------------------------------
 #MAIN START
 #-----------------------------------
@@ -159,6 +177,7 @@ for ff in os.listdir(wdir):
         plt.rcParams["figure.figsize"] = [figx/2.54, figy/2.54]
         plt.rcParams["figure.figsize"] = [figx/2.54, figy/2.54]
         fig=plt.figure()
+
         lut = cm = plt.get_cmap(colourmap) 
         cNorm  = colors.Normalize(vmin=0, vmax=len(steps)+2)
         scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=lut)
@@ -168,25 +187,11 @@ for ff in os.listdir(wdir):
 
         #initialise image printouts
         
-
     #   read in the image and assign an image centre (manual for now)
+        rpoints=radcut-centrecut-1
+
         imgmaster = cv2.imread(f, 0)
-        profiles=np.zeros((len(steps),radcut-centrecut,2))
-
-        
-
-        if "r0" in fname:
-            centrex=185
-            centrey=183
-        elif "r1" in fname:
-            centrex=180
-            centrey=182
-        elif "r2" in fname:
-            centrex=180
-            centrey=181    
-        elif "r3" in fname:
-            centrex=117
-            centrey=116
+        profiles=np.zeros((len(steps),rpoints,2))
         
     #   iterate through each mask position
         for i in steps:
@@ -203,7 +208,54 @@ for ff in os.listdir(wdir):
             mask += sector_mask(img.shape,(centrex,centrey),radcut,(th1+180,th2+180))
             img[~mask] = 0
 
-        # plot the image
+
+
+        #get the centre and centremask
+            center, ccut = (centrex, centrey), centrecut
+            
+            #   create the azimuthal profile (x,rad) and add to master matrix
+            rad = radial_profile(img, center)
+            x = np.arange(rad.shape[0])
+            rad=rad[ccut:(radcut)]
+            x=x[ccut:(radcut)]
+            rad=rad[:rpoints]
+            x=x[:rpoints]
+            profiles[j,:,:] = np.c_[x, rad]
+            
+        #   PLOTS
+            #plot data, found peaks, fits
+            
+            #guesses - initial guesses for params
+            dist=167 #mm? nm?
+            amp=10000
+            Cs=2    #spherical aberration coeff, mm
+            wl=0.001 #wavelength (accel voltage)
+             #de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
+            dz=1   #defocus value (depth of field)
+            dec=1
+            c=100
+
+            wl2=0.025
+            th=np.arctan(x/dist)
+            k=2*np.pi*np.sin(th)/wl2    #spatial frequency in nm ?
+
+
+
+     #       https://stackoverflow.com/questions/22895794/scipys-optimize-curve-fit-limits
+     #      bounded doesn't work - think only works for two params
+     #      try lmfit in so link
+            guess=np.array([amp, Cs, wl, dz, dec, c])
+            bounded=([amp/10,amp,amp*10],[Cs/10,Cs,Cs*10],[wl/10,wl,wl*10],[dz/10,dz,dz*10],[dec/10,dec,dec*10],[c/10,c,c*10])
+            popt, pcov = curve_fit(ctfmodel, k, rad, p0=guess, ftol=0.00001)
+            popt, pcov = curve_fit(ctfmodel, k, rad, bounds=bounded)
+            print("guess",*guess)
+            print("opt",*popt)
+            
+            print(k[:30])
+            ctf=ctfmodel(k, *popt)
+           # ctf=ctfmodel(k, *guess)
+
+            # plot the image
             axrad=fig.add_axes([0.08+0.217*j,0.52,0.20,0.45])
             axrad.spines[:].set_linewidth(2)
             axrad.spines[:].set_color(colorVal)
@@ -212,50 +264,48 @@ for ff in os.listdir(wdir):
             axrad.tick_params(color=colorVal, labelcolor=colorVal)
             axrad.imshow(img)
 
-        #get the centre and centremask
-            center, ccut = (centrex, centrey), centrecut
-            
-            #   create the azimuthal profile (x,rad) and add to master matrix
-            rad = radial_profile(img, center)
-            rad=rad[ccut:radcut]
-            x = np.arange(rad.shape[0])
-            profiles[j,:,:] = np.c_[x, rad]
-            
-        #   PLOTS
-            #plot data, found peaks, fits
-            
-            axgph.plot(x, rad, label=secmid, color=colorVal)
-       
-            
+
+            axgph.plot(k, rad, label=secmid, color=colorVal)
+            axgph.plot(k, ctf, 
+                    ':',
+                    color="green")
+            """"
+            CTF start here
+            ctf= np.arange(x.shape[0])
+
+            ctf=-2*sin( (np.pi/2)*(Cs*wl**3*k**4 -2*dz*wl*k**2))
+
+            ctf=-2*sin( (np.pi/2)*(Cs*wl**3*k**4 -2*dz*wl*k**2))
+            """
     #FINAL PLOT
     #adjust labels, legends etc
 
             axgph.set_ylabel('Intensity')
-            axgph.set_xlabel('px (radial)')
-            axgph.set_xlim(0,radcut)
+            axgph.set_xlabel('k (nm)')
+#            axgph.set_xlim(0,5)
             axgph.legend(loc="upper right")
             j=j+1
         #end for i    
-        
+            
 
         #calculate stats for each image from profiles
         #eg. sum, average, std dev, variance
-
-        psum=np.zeros(radcut-centrecut)
+        """
+        psum=np.zeros(rpoints)
         for i in np.arange(len(steps)):
             psum=np.add(psum,profiles[i,:,1])
 
         pavg=psum/len(steps)
 
-        sq=np.zeros([len(steps),radcut-centrecut])
-        sqd=np.zeros([len(steps),radcut-centrecut])
+        sq=np.zeros([len(steps),rpoints])
+        sqd=np.zeros([len(steps),rpoints])
 
         
         for i in np.arange(len(steps)):
             sq[i,:]=np.subtract(profiles[i,:,1],pavg)
             sqd[i,:]=np.multiply(sq[i,:],sq[i,:])
 
-        var=np.zeros(radcut-centrecut)
+        var=np.zeros(rpoints)
         for i in np.arange(len(steps)):
             var=np.add(var,sqd[i,:])
 
@@ -263,12 +313,12 @@ for ff in os.listdir(wdir):
 
         #variance here        
         varval=np.sum(var)/len(var)
-
+        
     #   Add variance to master plot y2
 
         #initialise variance line
         colorVal = scalarMap.to_rgba(j)
-        vline=np.zeros(radcut-centrecut)
+        vline=np.zeros(rpoints)
         vline.fill(varval)
         
         axg2=axgph.twinx()
@@ -285,13 +335,13 @@ for ff in os.listdir(wdir):
         axg2.spines['right'].set_color('green')
 
         axg2.text(len(vline),2*varval,("variance = %.2f" % varval),horizontalalignment='right',color="green")
-        
+        """
     #   output the final figure for this file
         fig.savefig(os.path.join(odir, ("out_%s.png" % fname)), dpi=300)
         plt.show()
     #   add stats to output matrices
         fnames[h]=fname
-        vars[h]=Decimal(round(varval,2))
+#        vars[h]=Decimal(round(varval,2))
 
     #   clear the figure
         #fig.clf()
