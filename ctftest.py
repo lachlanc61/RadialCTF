@@ -14,6 +14,16 @@ from scipy.optimize import curve_fit
 
 
 
+def ctfmodel(x, amp, Cs, wl, dz, dm, dec, c):
+    y = np.zeros_like(x)
+    y=-amp*(1/(x**dm))*(np.sin( (np.pi/2)*(Cs*wl**3*x**4 - 2*dz*wl*x**2)))-dec*x+c
+    return y
+
+def actfmodel(x, amp, Cs, wl, dz, dm, dec, c):
+    y = np.zeros_like(x)
+    y=abs(-amp*(1/(x**dm))*(np.sin( (np.pi/2)*(Cs*wl**3*x**4 - 2*dz*wl*x**2))))-dec*x+c
+    return y
+
 
 #figure params
 colourmap='Set1'    #colourmap for figure
@@ -42,27 +52,25 @@ plt.rcParams["figure.figsize"] = [figx/2.54, figy/2.54]
 plt.rcParams["figure.figsize"] = [figx/2.54, figy/2.54]
 fig=plt.figure()
 
-amp=50
-dist=20 #mm? nm?
+amp=10000
 Cs=2    #spherical aberration coeff, mm
-wl=0.0025 #wavelength (accel voltage)
-        #de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
-dz=1000   #defocus value (depth of field)
+wl=0.001 #wavelength (accel voltage)
+             #de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
+dz=0.5   #defocus value (depth of field)
+dm=1 #damping factor
+dec=1  #decay factor
+c=50     #constant
 
-x=np.arange(0,256,1)
-th=np.arctan(x/dist)
-k=th    #spatial frequency in nm ?
+guess=np.array([amp, Cs, wl, dz, dm, dec, c])
 
-print(k)
+k=np.linspace(1,150,500)
+#th=np.arctan(x/dist)
 
+ctf=ctfmodel(k, *guess)
+actf=actfmodel(k, *guess)
 
-
-#k=np.arange(0,2,0.01)
-y=np.sin(x)
-
-ctf=-amp*np.sin( (np.pi/2)*(Cs*wl**3*k**4 -2*dz*wl*k**2))
-
-plt.plot(k, ctf)
+#plt.plot(k, ctf)
+plt.plot(k, actf)
 
 plt.show()
 

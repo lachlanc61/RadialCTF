@@ -1,2 +1,2 @@
 #       file     variance
-        iso2          0.0
+       3p85s          0.0

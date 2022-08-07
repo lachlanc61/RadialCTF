@@ -27,7 +27,7 @@ centrey=167 #beam centre position 256/256 for carlos images
 #167-8x 175-6y
 
 #radial params
-centrecut=10     #minimum radius (centre mask)
+centrecut=5     #minimum radius (centre mask)
 radcut=150      #maximum radius
 secwidth=180     #width of sector
 secmid=0        #centre of first sector
@@ -55,6 +55,12 @@ def rotate_image(image, angle):
   result = cv2.warpAffine(image, rot_mat, image.shape[1::-1], flags=cv2.INTER_LINEAR)
   return result
 
+#get index from array closest to value
+#https://stackoverflow.com/questions/2566412/find-nearest-value-in-numpy-array
+def find_nearest(array, value):
+    array = np.asarray(array)
+    idx = (np.abs(array - value)).argmin()
+    return idx
 
 #Generate a radial profile
 def radial_profile(data, center):
@@ -115,9 +121,9 @@ def sector_mask(shape,centre,radius,angle_range):
 
 
 
-def ctfmodel(x, amp, Cs, wl, dz, dec, c):
+def ctfmodel(x, amp, Cs, wl, dz, dm, dec, c):
     y = np.zeros_like(x)
-    y=-amp*(1/(dec*k))*np.sin( (np.pi/2)*(Cs*wl**3*x**4 - 2*dz*wl*x**2))+c
+    y=abs(-2*amp*(1/(x**dm))*(np.sin( (np.pi/2)*(Cs*wl**3*x**4 - 2*dz*wl*x**2))))-dec*x+c
     return y
 
 #-----------------------------------
@@ -171,7 +177,9 @@ for ff in os.listdir(wdir):
     if (os.path.isfile(f)) and (f.endswith(".tif")):
         print(fname)
         j=0
+
         
+
         #initialise plot and colourmaps per file
         steps=np.arange(0, 180, secstep)
         plt.rcParams["figure.figsize"] = [figx/2.54, figy/2.54]
@@ -188,9 +196,17 @@ for ff in os.listdir(wdir):
         #initialise image printouts
         
     #   read in the image and assign an image centre (manual for now)
-        rpoints=radcut-centrecut-1
+        
 
         imgmaster = cv2.imread(f, 0)
+        centrex, centrey = tuple(np.array(imgmaster.shape[1::-1]) / 2)
+        centrex=int(centrex)
+        centrey=int(centrey)
+        print(centrex, centrey)
+        radcut=int(max(centrex, centrey)*0.9)
+        print(radcut)
+        rpoints=radcut-centrecut-1
+        
         profiles=np.zeros((len(steps),rpoints,2))
         
     #   iterate through each mask position
@@ -206,6 +222,10 @@ for ff in os.listdir(wdir):
         # apply the mask
             mask = sector_mask(img.shape,(centrex,centrey),radcut,(th1,th2))
             mask += sector_mask(img.shape,(centrex,centrey),radcut,(th1+180,th2+180))
+
+            mask[:,centrey] = False
+            mask[centrex,:] = False
+                        
             img[~mask] = 0
 
 
@@ -224,37 +244,53 @@ for ff in os.listdir(wdir):
             
         #   PLOTS
             #plot data, found peaks, fits
-            
-            #guesses - initial guesses for params
-            dist=167 #mm? nm?
+            """
+            #guesses - roger test iso2
             amp=10000
+            Cs=2    #spherical aberration coeff, mm
+            wl=0.0008 #wavelength (accel voltage)
+             #de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
+            dz=0.78   #defocus value (depth of field)
+            dm=1.45
+            dec=0.3
+            c=75
+            cmax=80
+            """
+            #guesses - carlos3
+            amp=50000
             Cs=2    #spherical aberration coeff, mm
             wl=0.001 #wavelength (accel voltage)
              #de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
-            dz=1   #defocus value (depth of field)
-            dec=1
-            c=100
-
-            wl2=0.025
-            th=np.arctan(x/dist)
-            k=2*np.pi*np.sin(th)/wl2    #spatial frequency in nm ?
-
-
+            dz=0.2   #defocus value (depth of field)
+            dm=2
+            dec=0.005
+            c=50
+            cmax=80
 
      #       https://stackoverflow.com/questions/22895794/scipys-optimize-curve-fit-limits
      #      bounded doesn't work - think only works for two params
      #      try lmfit in so link
-            guess=np.array([amp, Cs, wl, dz, dec, c])
-            bounded=([amp/10,amp,amp*10],[Cs/10,Cs,Cs*10],[wl/10,wl,wl*10],[dz/10,dz,dz*10],[dec/10,dec,dec*10],[c/10,c,c*10])
-            popt, pcov = curve_fit(ctfmodel, k, rad, p0=guess, ftol=0.00001)
-            popt, pcov = curve_fit(ctfmodel, k, rad, bounds=bounded)
+            k=x
+           # k=1/(x/1000)    #spatial frequency in nm ?
+            bf=2
+            guess=np.array([amp, Cs, wl, dz, dm, dec, c])
+
+            bounded=([amp/bf, Cs/bf*1.9, wl/bf, dz/bf, dm/bf, dec/bf, c/bf], [amp*bf, Cs*bf/1.9, wl*bf, dz*bf, dm*bf, dec*bf, cmax])
+            #popt, pcov = curve_fit(ctfmodel, k, rad, p0=guess, ftol=0.00001)
+            popt, pcov = curve_fit(ctfmodel, k, rad, p0=guess, bounds=bounded)
+            print("params: amp, Cs, wl, dz, dm, dec, c")
             print("guess",*guess)
             print("opt",*popt)
-            
-            print(k[:30])
-            ctf=ctfmodel(k, *popt)
-           # ctf=ctfmodel(k, *guess)
 
+            ctf=ctfmodel(k, *popt)
+        #   ctf=ctfmodel(k, *guess)
+            insin=(popt[1]*popt[2]**3*k**4 - 2*popt[3]*popt[2]*k**2)
+
+            order2nd=find_nearest(insin, value=-3.0)
+
+           # print(np.where((-4.2 <= insin) and (insin <= -3.8)).any())
+           # print(np.where(max2))
+           # exit()
             # plot the image
             axrad=fig.add_axes([0.08+0.217*j,0.52,0.20,0.45])
             axrad.spines[:].set_linewidth(2)
@@ -263,25 +299,32 @@ for ff in os.listdir(wdir):
             axrad.set_yticklabels([])
             axrad.tick_params(color=colorVal, labelcolor=colorVal)
             axrad.imshow(img)
-
-
+            axgph.axvline(x=order2nd, color="black", linestyle='--')
             axgph.plot(k, rad, label=secmid, color=colorVal)
             axgph.plot(k, ctf, 
                     ':',
-                    color="green")
+                    color=colorVal)
+            axgph.text(order2nd*1.05,0.95*max(ctf),
+                ("%.2f px" % order2nd),
+                horizontalalignment='left',
+                color="black")
+     #       axg2=axgph.twinx()
+        #    axg2.plot(k, pinsin, 
+       #     axg2.plot(k, insin, 
+        #            ':',
+      #              color=colorVal)
             """"
-            CTF start here
-            ctf= np.arange(x.shape[0])
+            axgph.plot(insin, pinsin, 
+                ':',
+                color=colorVal)
 
-            ctf=-2*sin( (np.pi/2)*(Cs*wl**3*k**4 -2*dz*wl*k**2))
-
-            ctf=-2*sin( (np.pi/2)*(Cs*wl**3*k**4 -2*dz*wl*k**2))
+            maxima at 1 3 5 etc
             """
     #FINAL PLOT
     #adjust labels, legends etc
 
             axgph.set_ylabel('Intensity')
-            axgph.set_xlabel('k (nm)')
+            axgph.set_xlabel('px')
 #            axgph.set_xlim(0,5)
             axgph.legend(loc="upper right")
             j=j+1
@@ -349,8 +392,8 @@ for ff in os.listdir(wdir):
         h=h+1
 
 #print the final list of values and save to report file
-print(fnames)
-print(vars)
+#print(fnames)
+#print(vars)
 
 
 np.savetxt(os.path.join(odir, "results.txt"), np.c_[fnames, vars], newline='\n', fmt=['%12s','%12s'], header="      file     variance")
