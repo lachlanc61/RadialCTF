@@ -241,7 +241,7 @@ for ff in os.listdir(wdir):
             rad=rad[:rpoints]
             x=x[:rpoints]
             profiles[j,:,:] = np.c_[x, rad]
-            
+            #test
         #   PLOTS
             #plot data, found peaks, fits
             """
