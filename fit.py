@@ -229,7 +229,7 @@ for ff in os.listdir(wdir):
             img[~mask] = 0
 
 
-
+#test
         #get the centre and centremask
             center, ccut = (centrex, centrey), centrecut
             
