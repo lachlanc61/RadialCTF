@@ -18,17 +18,8 @@ from scipy.optimize import curve_fit
 wdirname='data'     #working directory relative to script
 odirname='out'      #output directory relative to script
 
-#fitting
-pfprom=10       #prominence threshold for peak fit (default=10)
-widthguess=50   #initial guess for peak widths
-centrex=167 #beam centre position x 167 y 167 for iso2.tif
-centrey=167 #beam centre position 256/256 for carlos images
-
-#167-8x 175-6y
-
 #radial params
 centrecut=5     #minimum radius (centre mask)
-radcut=150      #maximum radius
 secwidth=180     #width of sector
 secmid=0        #centre of first sector
 secstep=180      #step between sectors
@@ -43,6 +34,64 @@ medfont = 10
 lgfont = 12
 lwidth = 1  #default linewidth
 bwidth = 1  #default border width
+
+
+#initial guesses for fit params
+pxpitch=1.252    #nm per pixel in real space
+pxdim=512
+"""
+https://www.dsprelated.com/showthread/comp.dsp/24594-1.php
+In each dimension, units are "cycles per aperture width". 
+
+If an image of a scene represents M=4 meters by N=3 meters of area, then any
+element (m,n) of the output FFT is m cycles per 4 meters by n cycles per 3
+meters.
+"""
+
+amp=0.06
+Cs=2.7E6    #spherical aberration coeff, nm (=2.6 mm)
+wl=0.00335 #wavelength (nm) 
+#wl=0.1 #wavelength (nm) 
+    #from accel voltage via de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
+dz=26500   #defocus value (depth of field)  #FIT THIS
+dm=2.2        #damping param
+dec=12.95   #decay param
+c=56        #constant
+cmax=80     #constant max
+
+bf=2        #bounding factor - defines fit limits
+
+
+""""
+MANUAL GUESS - defocus val is real fit param - effecitvely changes phase
+amp=0.1
+Cs=2.7E6    #spherical aberration coeff, nm (=2.6 mm)
+wl=0.00335 #wavelength (nm) 
+#wl=0.1 #wavelength (nm) 
+    #from accel voltage via de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
+dz=26000   #defocus value (depth of field)  #FIT THIS
+dm=2        #damping param
+dec=20   #decay param
+c=60        #constant
+cmax=80     #constant max
+
+bf=2        #bounding factor - defines fit limits
+
+#initial guesses for fit params
+pxpitch=1.25    #nm per pixel in real space
+
+amp=50000
+Cs=2.7E6    #spherical aberration coeff, nm (=2.6 mm)
+wl=0.00335 #wavelength (nm) 
+    #from accel voltage via de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
+dz=200   #defocus value (depth of field)
+dm=2        #damping param
+dec=0.005   #decay param
+c=50        #constant
+cmax=80     #constant max
+
+bf=2        #bounding factor - defines fit limits
+"""
 #-------------------------------------
 #FUNCTIONS
 #-----------------------------------
@@ -178,8 +227,6 @@ for ff in os.listdir(wdir):
         print(fname)
         j=0
 
-        
-
         #initialise plot and colourmaps per file
         steps=np.arange(0, 180, secstep)
         plt.rcParams["figure.figsize"] = [figx/2.54, figy/2.54]
@@ -195,21 +242,20 @@ for ff in os.listdir(wdir):
 
         #initialise image printouts
         
-    #   read in the image and assign an image centre (manual for now)
-        
-
+    #   read in the image
         imgmaster = cv2.imread(f, 0)
+        # get image centres, outer radius
         centrex, centrey = tuple(np.array(imgmaster.shape[1::-1]) / 2)
         centrex=int(centrex)
         centrey=int(centrey)
-        print(centrex, centrey)
         radcut=int(max(centrex, centrey)*0.9)
-        print(radcut)
         rpoints=radcut-centrecut-1
         
+        #initialise the profile array
         profiles=np.zeros((len(steps),rpoints,2))
         
-    #   iterate through each mask position
+    #   create series of radial masks
+    #       iterate through each mask position according to secwith and secstep
         for i in steps:
             print(steps)
             #duplicate the image
@@ -219,21 +265,21 @@ for ff in os.listdir(wdir):
         # initialise mask from sector coords
             th1=secmid-secwidth/2
             th2=secmid+secwidth/2
-        # apply the mask
+        # generate the paired masks
             mask = sector_mask(img.shape,(centrex,centrey),radcut,(th1,th2))
             mask += sector_mask(img.shape,(centrex,centrey),radcut,(th1+180,th2+180))
-
+        # add masks on centre xy column/rows
             mask[:,centrey] = False
             mask[centrex,:] = False
-                        
+        # apply mask               
             img[~mask] = 0
 
 
-#test
+
         #get the centre and centremask
             center, ccut = (centrex, centrey), centrecut
             
-            #   create the azimuthal profile (x,rad) and add to master matrix
+            #   create the azimuthal profile (x,rad) and add to master matrix for this image
             rad = radial_profile(img, center)
             x = np.arange(rad.shape[0])
             rad=rad[ccut:(radcut)]
@@ -256,35 +302,31 @@ for ff in os.listdir(wdir):
             c=75
             cmax=80
             """
-            #guesses - carlos3
-            amp=50000
-            Cs=2    #spherical aberration coeff, mm
-            wl=0.001 #wavelength (accel voltage)
-             #de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
-            dz=0.2   #defocus value (depth of field)
-            dm=2
-            dec=0.005
-            c=50
-            cmax=80
+
 
      #       https://stackoverflow.com/questions/22895794/scipys-optimize-curve-fit-limits
-     #      bounded doesn't work - think only works for two params
-     #      try lmfit in so link
-            k=x
-           # k=1/(x/1000)    #spatial frequency in nm ?
-            bf=2
+     #      FITTING HERE
+     #--------------------------------------------------------
+           # k=x
+            k=x/(pxpitch*pxdim)  
+            
             guess=np.array([amp, Cs, wl, dz, dm, dec, c])
-
+            insin=(guess[1]*guess[2]**3*k**4 - 2*guess[3]*guess[2]*k**2)
+            print(insin)
             bounded=([amp/bf, Cs/bf*1.9, wl/bf, dz/bf, dm/bf, dec/bf, c/bf], [amp*bf, Cs*bf/1.9, wl*bf, dz*bf, dm*bf, dec*bf, cmax])
+            print(amp, Cs, wl, dz, dm, dec, c)
+            print(amp/bf, Cs/bf*1.9, wl/bf, dz/bf, dm/bf, dec/bf, c/bf)
             #popt, pcov = curve_fit(ctfmodel, k, rad, p0=guess, ftol=0.00001)
             popt, pcov = curve_fit(ctfmodel, k, rad, p0=guess, bounds=bounded)
+     #--------------------------------------------------------
+
             print("params: amp, Cs, wl, dz, dm, dec, c")
             print("guess",*guess)
             print("opt",*popt)
 
-            ctf=ctfmodel(k, *popt)
-        #   ctf=ctfmodel(k, *guess)
-            insin=(popt[1]*popt[2]**3*k**4 - 2*popt[3]*popt[2]*k**2)
+        #    ctf=ctfmodel(k, *popt)
+            ctf=ctfmodel(k, *guess)
+           # insin=(popt[1]*popt[2]**3*k**4 - 2*popt[3]*popt[2]*k**2)
 
             order2nd=find_nearest(insin, value=-3.0)
 
@@ -299,15 +341,19 @@ for ff in os.listdir(wdir):
             axrad.set_yticklabels([])
             axrad.tick_params(color=colorVal, labelcolor=colorVal)
             axrad.imshow(img)
-            axgph.axvline(x=order2nd, color="black", linestyle='--')
-            axgph.plot(k, rad, label=secmid, color=colorVal)
+            #axgph.axvline(x=order2nd, color="black", linestyle='--')
+
+            #axgph.plot(k, np.sin((np.pi/2)*20*insin), 
+        #    axgph.plot(k, insin*20, 
+            axgph.plot(k, rad, 
+                color=colorVal)
             axgph.plot(k, ctf, 
-                    ':',
-                    color=colorVal)
-            axgph.text(order2nd*1.05,0.95*max(ctf),
-                ("%.2f px" % order2nd),
-                horizontalalignment='left',
-                color="black")
+                ':',
+                color=colorVal)
+           # axgph.text(order2nd*1.05,0.95*max(ctf),
+           #     ("%.2f px" % order2nd),
+           #     horizontalalignment='left',
+           #     color="black")
      #       axg2=axgph.twinx()
         #    axg2.plot(k, pinsin, 
        #     axg2.plot(k, insin, 
@@ -324,7 +370,7 @@ for ff in os.listdir(wdir):
     #adjust labels, legends etc
 
             axgph.set_ylabel('Intensity')
-            axgph.set_xlabel('px')
+            axgph.set_xlabel('Spatial frequency (1/nm)')
 #            axgph.set_xlim(0,5)
             axgph.legend(loc="upper right")
             j=j+1
