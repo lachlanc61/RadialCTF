@@ -48,8 +48,8 @@ element (m,n) of the output FFT is m cycles per 4 meters by n cycles per 3
 meters.
 """
 
-amp=0.06
-Cs=2.7E6    #spherical aberration coeff, nm (=2.6 mm)
+amp=0.06    #amplitude
+Cs=2.7E6    #spherical aberration coeff, nm (=2.7 mm)
 wl=0.00335 #wavelength (nm) 
 #wl=0.1 #wavelength (nm) 
     #from accel voltage via de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
@@ -61,6 +61,11 @@ cmax=80     #constant max
 
 bf=2        #bounding factor - defines fit limits
 
+#to-do change damping param to true envelope function 
+#   http://blake.bcm.tmc.edu/eman1/ctfc/ctfc.html
+# e^(-Bk**2)
+
+#true constant/decay is more complicated as well, bx+c probably good enough for now
 
 """"
 MANUAL GUESS - defocus val is real fit param - effecitvely changes phase
