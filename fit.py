@@ -7,6 +7,7 @@ import cv2
 import os
 import glob
 import scipy.signal as scs
+from scipy.stats import norm
 
 from pathlib import Path
 from scipy.optimize import curve_fit
@@ -46,20 +47,28 @@ In each dimension, units are "cycles per aperture width".
 If an image of a scene represents M=4 meters by N=3 meters of area, then any
 element (m,n) of the output FFT is m cycles per 4 meters by n cycles per 3
 meters.
+
+guess 50.06 2700000.0 0.00335 26500 150 12.95 56
 """
 
-amp=0.06    #amplitude
+amp=25    #amplitude
 Cs=2.7E6    #spherical aberration coeff, nm (=2.7 mm)
 wl=0.00335 #wavelength (nm) 
 #wl=0.1 #wavelength (nm) 
     #from accel voltage via de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
-dz=26500   #defocus value (depth of field)  #FIT THIS
-dm=2.2        #damping param
-dec=12.95   #decay param
-c=56        #constant
-cmax=80     #constant max
+#dz=27500   #defocus value (depth of field)  #FIT THIS
+dz=25000
+dm=130        #damping param
+dec=20   #decay param
+c=60        #constant
 
-bf=2        #bounding factor - defines fit limits
+gsig=0.035
+gamp=80
+
+#bounds
+bf2=2        #bounding factor - defines fit limits
+bf1=1.3
+bf0=1.01
 
 #to-do change damping param to true envelope function 
 #   http://blake.bcm.tmc.edu/eman1/ctfc/ctfc.html
@@ -69,33 +78,23 @@ bf=2        #bounding factor - defines fit limits
 
 """"
 MANUAL GUESS - defocus val is real fit param - effecitvely changes phase
-amp=0.1
-Cs=2.7E6    #spherical aberration coeff, nm (=2.6 mm)
+amp=50    #amplitude
+Cs=2.7E6    #spherical aberration coeff, nm (=2.7 mm)
 wl=0.00335 #wavelength (nm) 
 #wl=0.1 #wavelength (nm) 
     #from accel voltage via de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
-dz=26000   #defocus value (depth of field)  #FIT THIS
-dm=2        #damping param
-dec=20   #decay param
-c=60        #constant
-cmax=80     #constant max
+dz=26500   #defocus value (depth of field)  #FIT THIS
+dm=150        #damping param
+dec=13   #decay param
+c=56        #constant
 
-bf=2        #bounding factor - defines fit limits
+gsig=0.03
+gamp=80
 
-#initial guesses for fit params
-pxpitch=1.25    #nm per pixel in real space
-
-amp=50000
-Cs=2.7E6    #spherical aberration coeff, nm (=2.6 mm)
-wl=0.00335 #wavelength (nm) 
-    #from accel voltage via de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
-dz=200   #defocus value (depth of field)
-dm=2        #damping param
-dec=0.005   #decay param
-c=50        #constant
-cmax=80     #constant max
-
-bf=2        #bounding factor - defines fit limits
+#bounds
+bf2=2        #bounding factor - defines fit limits
+bf1=1.3
+bf0=1.01
 """
 #-------------------------------------
 #FUNCTIONS
@@ -173,11 +172,18 @@ def sector_mask(shape,centre,radius,angle_range):
     
     return circmask*anglemask
 
+#outputs gaussian with max y = amp
+def ngauss(x, mu, sig1, amp):
+    g1=norm.pdf(x, mu, sig1)
+    g1n=np.divide(g1,max(g1))
+    return np.multiply(g1n, amp)
 
 
-def ctfmodel(x, amp, Cs, wl, dz, dm, dec, c):
+def ctfmodel(x, amp, Cs, wl, dz, dm, dec, c, gsig, gamp):
     y = np.zeros_like(x)
-    y=abs(-2*amp*(1/(x**dm))*(np.sin( (np.pi/2)*(Cs*wl**3*x**4 - 2*dz*wl*x**2))))-dec*x+c
+#    y=abs(-2*amp*(1/(x**dm))*(np.sin( (np.pi/2)*(Cs*wl**3*x**4 - 2*dz*wl*x**2))))-dec*x+c
+#    print(-dm*x**2, np.exp(-dm*x**2))
+    y=ngauss(x, 0, gsig, gamp)+2*amp*(np.exp(-dm*x**2))*abs(np.sin( (np.pi/2)*(Cs*wl**3*x**4 - 2*dz*wl*x**2)))-dec*x+c
     return y
 
 #-----------------------------------
@@ -315,23 +321,27 @@ for ff in os.listdir(wdir):
            # k=x
             k=x/(pxpitch*pxdim)  
             
-            guess=np.array([amp, Cs, wl, dz, dm, dec, c])
+            guess=np.array([amp, Cs, wl, dz, dm, dec, c, gsig, gamp])
             insin=(guess[1]*guess[2]**3*k**4 - 2*guess[3]*guess[2]*k**2)
-            print(insin)
-            bounded=([amp/bf, Cs/bf*1.9, wl/bf, dz/bf, dm/bf, dec/bf, c/bf], [amp*bf, Cs*bf/1.9, wl*bf, dz*bf, dm*bf, dec*bf, cmax])
-            print(amp, Cs, wl, dz, dm, dec, c)
-            print(amp/bf, Cs/bf*1.9, wl/bf, dz/bf, dm/bf, dec/bf, c/bf)
+            sinfac=abs(np.sin( (np.pi/2)*insin))
+            ampfac=2*amp*(np.exp(-dm*k**2))
+            oampfac=2*amp*(1/(x**2))
+            baseline=-dec*k+c
+
+            bounded=([amp/bf2, Cs/(bf0), wl/bf0, dz/bf2, dm/bf2, dec/bf2, c/bf1, gsig/bf2, gamp/bf2], [amp*bf2, Cs*bf0, wl*bf0, dz*bf2, dm*bf2, dec*bf2, c*bf1, gsig*bf2, gamp*bf2])
+            print("guess", amp, Cs, wl, dz, dm, dec, c)
             #popt, pcov = curve_fit(ctfmodel, k, rad, p0=guess, ftol=0.00001)
             popt, pcov = curve_fit(ctfmodel, k, rad, p0=guess, bounds=bounded)
      #--------------------------------------------------------
 
+
+
+            #ctf=ctfmodel(k, *popt)
+            ctf=ctfmodel(k, *guess)
+           # insin=(popt[1]*popt[2]**3*k**4 - 2*popt[3]*popt[2]*k**2)
             print("params: amp, Cs, wl, dz, dm, dec, c")
             print("guess",*guess)
             print("opt",*popt)
-
-        #    ctf=ctfmodel(k, *popt)
-            ctf=ctfmodel(k, *guess)
-           # insin=(popt[1]*popt[2]**3*k**4 - 2*popt[3]*popt[2]*k**2)
 
             order2nd=find_nearest(insin, value=-3.0)
 
@@ -349,7 +359,7 @@ for ff in os.listdir(wdir):
             #axgph.axvline(x=order2nd, color="black", linestyle='--')
 
             #axgph.plot(k, np.sin((np.pi/2)*20*insin), 
-        #    axgph.plot(k, insin*20, 
+        #    axgph.plot(k, ampfac, 
             axgph.plot(k, rad, 
                 color=colorVal)
             axgph.plot(k, ctf, 
