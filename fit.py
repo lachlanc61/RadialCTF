@@ -329,38 +329,36 @@ for ff in os.listdir(wdir):
             k=x/(pxpitch*pxdim)  
             
             guess=np.array([amp, Cs, wl, dz, dm, dec, c, gsig, gamp])
-            insin=(guess[1]*guess[2]**3*k**4 - 2*guess[3]*guess[2]*k**2)
-            sinfac=np.sin( (np.pi/2)*insin)
-            ampfac=2*amp*(np.exp(-dm*k**2))
-            oampfac=2*amp*(1/(x**2))
-            baseline=-dec*k+c
-
-            
-           
+            #insin=(guess[1]*guess[2]**3*k**4 - 2*guess[3]*guess[2]*k**2)
+            #sinfac=np.sin( (np.pi/2)*insin)
+            #ampfac=2*amp*(np.exp(-dm*k**2))
+            #oampfac=2*amp*(1/(x**2))
+            #baseline=-dec*k+c
+   
             bounded=([amp/bf2, Cs/(bf0), wl/bf0, dz/bf2, dm/bf2, dec/bf2, c/bf1, gsig/bf2, gamp/bf2], [amp*bf2, Cs*bf0, wl*bf0, dz*bf2, dm*bf2, dec*bf2, c*bf1, gsig*bf2, gamp*bf2])
             print("guess", amp, Cs, wl, dz, dm, dec, c)
-            #popt, pcov = curve_fit(ctfmodel, k, rad, p0=guess, ftol=0.00001)
+
+            # DO FIT 
             popt, pcov = curve_fit(ctfmodel, k, rad, p0=guess, bounds=bounded)
      #--------------------------------------------------------
 
-
-
+            #create final model
             #ctf=ctfmodel(k, *popt)
             ctf=ctfmodel(k, *guess)
+
+            #create model for sin component
             sinfac=np.sin( (np.pi/2)*(popt[1]*popt[2]**3*k**4 - 2*popt[3]*popt[2]*k**2))
+
+            #get index of first crossing of x-axis -> this is the zero point
             zpoint=zerocross(sinfac)[0]
-            print("zero point",k[zpoint])
-           # insin=(popt[1]*popt[2]**3*k**4 - 2*popt[3]*popt[2]*k**2)
+
             print("params: amp, Cs, wl, dz, dm, dec, c")
             print("guess",*guess)
             print("opt",*popt)
+            print("zero point",k[zpoint])
 
-           # print(np.where((-1 <= sinfac) and (sinfac <= 0.1)).any())
-           # print(np.where(max2))
-            
-            # plot the image
             #   PLOTS
-            #plot data, found peaks, fits
+            #plot data, fits, zeropoint
 
             axrad=fig.add_axes([0.08+0.217*j,0.52,0.20,0.45])
             axrad.spines[:].set_linewidth(2)
@@ -369,10 +367,6 @@ for ff in os.listdir(wdir):
             axrad.set_yticklabels([])
             axrad.tick_params(color=colorVal, labelcolor=colorVal)
             axrad.imshow(img)
-            #axgph.axvline(x=order2nd, color="black", linestyle='--')
-
-            #axgph.plot(k, np.sin((np.pi/2)*20*insin), 
-            #axgph.plot(k, sinfac*80, 
             axgph.plot(k, rad, 
                 color=colorVal)
             axgph.plot(k, ctf, 
@@ -384,25 +378,14 @@ for ff in os.listdir(wdir):
                 ("%.3f $nm^{-1}$" % k[zpoint]),
                 horizontalalignment='left',
                 color="black")
-     #       axg2=axgph.twinx()
-        #    axg2.plot(k, pinsin, 
-       #     axg2.plot(k, insin, 
-        #            ':',
-      #              color=colorVal)
-            """"
-            axgph.plot(insin, pinsin, 
-                ':',
-                color=colorVal)
 
-            maxima at 1 3 5 etc
-            """
     #FINAL PLOT
     #adjust labels, legends etc
 
             axgph.set_ylabel('Intensity')
             axgph.set_xlabel('Spatial frequency (1/nm)')
 #            axgph.set_xlim(0,5)
-           # axgph.legend(loc="upper right")
+            axgph.legend(loc="upper right")
             j=j+1
         #end for i    
             
