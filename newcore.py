@@ -57,7 +57,6 @@ dz=27500        #defocus value (depth of field)  #FIT THIS
 dm=130          #damping param
 dec=20          #decay param
 c=30            #constant
-
 gsig=0.035  #gaussian sigma
 gamp=40     #gaussian amplitude
 
@@ -66,7 +65,6 @@ bf3=99      #very free
 bf2=2       #constrained     
 bf1=1.3     #highly constrained
 bf0=1.01    #effectively fixed
-
 
 #-------------------------------------
 #FUNCTIONS
@@ -173,8 +171,6 @@ def ngauss(x, mu, sig1, amp):
 
 def ctfmodel(x, amp, Cs, wl, dz, dm, dec, c, gsig, gamp):
     y = np.zeros_like(x)
-#    y=abs(-2*amp*(1/(x**dm))*(np.sin( (np.pi/2)*(Cs*wl**3*x**4 - 2*dz*wl*x**2))))-dec*x+c
-#    print(-dm*x**2, np.exp(-dm*x**2))
     y=ngauss(x, 0, gsig, gamp)+2*amp*(np.exp(-dm*x**2))*abs(np.sin( (np.pi/2)*(Cs*wl**3*x**4 - 2*dz*wl*x**2)))-dec*x+c
     return y
 
@@ -191,38 +187,41 @@ print("script:", script)
 print("script path:", spath)
 print("data path:", wdir)
 
+#initialise filepaths
+f = os.path.join(wdir,infile)
+fname = os.path.splitext(os.path.basename(f))[0]
+
 #initialise plot defaults
 plt.rc('font', size=smallfont)          # controls default text sizes
 plt.rc('axes', titlesize=smallfont)     # fontsize of the axes title
-plt.rc('axes', labelsize=medfont)    # fontsize of the x and y labels
+plt.rc('axes', labelsize=medfont)       # fontsize of the x and y labels
 plt.rc('xtick', labelsize=smallfont)    # fontsize of the tick labels
 plt.rc('ytick', labelsize=smallfont)    # fontsize of the tick labels
 plt.rc('legend', fontsize=smallfont)    # legend fontsize
-plt.rc('figure', titlesize=lgfont)  # fontsize of the figure title
+plt.rc('figure', titlesize=lgfont)      # fontsize of the figure title
 plt.rc('lines', linewidth=lwidth)
 plt.rcParams['axes.linewidth'] = bwidth
-
-f = os.path.join(wdir,infile)
-fname = os.path.splitext(os.path.basename(f))[0]
 
 #-----------------------------------
 #MAIN START
 #-----------------------------------
 
+#assign video capture
 vidcap = cv2.VideoCapture(f)
 
-#get total number of frames in avi (maybe different in more recent version of cv2?)
+#get total number of frames in avi 
 #https://stackoverflow.com/questions/25359288/how-to-know-total-number-of-frame-in-a-file-with-cv2-in-python
+#   - maybe different in more recent version of cv2
 vidlen = int(cv2.VideoCapture.get(vidcap, int(cv2.CAP_PROP_FRAME_COUNT)))
 
 print("opening ",fname)
 print("no frames:", vidlen)
 
 #initalise result arrays
-times= np.empty(vidlen, dtype="U10")
-zavg=np.zeros(vidlen)    #zero point average
-zvar=np.zeros(vidlen)   #zero point variance
-r2avg=np.zeros(vidlen)  #average r2 
+times= np.empty(vidlen, dtype="U10")    #timestamps
+zavg=np.zeros(vidlen)                   #zero point average
+zvar=np.zeros(vidlen)                   #zero point variance
+r2avg=np.zeros(vidlen)                  #average r2 value for fit
 
 #initialise tracking vars
 framecount = 0
@@ -312,14 +311,14 @@ while success:
     stepcount=0 #stepcounter
 #   create series of radial masks
 #       iterate through each mask position according to secwith and secstep
-    for secmid in steps:
+    for secpos in steps:
 
         #duplicate the image
         img = np.copy(ftimage)
         colorVal = scalarMap.to_rgba(stepcount)
         #initialise mask from sector coords
-        th1=secmid-secwidth/2
-        th2=secmid+secwidth/2
+        th1=secpos-secwidth/2
+        th2=secpos+secwidth/2
         #generate the paired masks
         mask = sector_mask(img.shape,(centrex,centrey),radcut,(th1,th2))
         mask += sector_mask(img.shape,(centrex,centrey),radcut,(th1+180,th2+180))
@@ -328,8 +327,6 @@ while success:
         mask[centrex,:] = False
         #apply mask               
         img[~mask] = 0
-
-
 
     #   get the centre and centremask
         center, ccut = (centrex, centrey), centrecut
@@ -390,7 +387,7 @@ while success:
         axrad.tick_params(color=colorVal, labelcolor=colorVal)
         axrad.imshow(img)
         axgph.plot(k, rad,
-            label="%d deg" % secmid,
+            label="%d deg" % secpos,
             color=colorVal)
         axgph.plot(k, ctf, 
             ':',
