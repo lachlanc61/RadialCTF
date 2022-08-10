@@ -23,7 +23,7 @@ odirname='out'      #output directory relative to script
 centrecut=5     #minimum radius (centre mask)
 secwidth=90     #width of sector
 secmid=0        #centre of first sector
-secstep=180      #step between sectors
+secstep=45      #step between sectors
 
 #figure params
 colourmap='Set1'    #colourmap for figure
@@ -243,9 +243,11 @@ if (secmid < 0) or (secmid >= 360):
 #initialise file# and report matrices
 nfiles=len(glob.glob1(wdir,"*.tif"))
 fnames= np.empty(nfiles, dtype="U10")
-vars=np.zeros(nfiles)
-h=0     #counter
+zavg=np.zeros(nfiles)    #zero point average
+zvar=np.zeros(nfiles)   #zero point variance
+r2avg=np.zeros(nfiles)  #average r2 
 
+h=0 #initialise filecounter
 #Interate through files in directory
 for ff in os.listdir(wdir):
 #for ff in ["r3.tif"]:
@@ -258,7 +260,7 @@ for ff in os.listdir(wdir):
     #if file is tif, proceed
     if (os.path.isfile(f)) and (f.endswith(".tif")):
         print(fname)
-        j=0
+        
 
         #initialise plot and colourmaps per file
         steps=np.arange(0, 180, secstep)
@@ -286,7 +288,11 @@ for ff in os.listdir(wdir):
         
         #initialise the profile array
         profiles=np.zeros((len(steps),rpoints,2))
-        
+        ctfs=np.zeros((len(steps),rpoints))
+        zvals=np.zeros(len(steps))
+        r2=np.zeros(len(steps))
+
+        j=0 #stepcounter
     #   create series of radial masks
     #       iterate through each mask position according to secwith and secstep
         for i in steps:
@@ -345,6 +351,13 @@ for ff in os.listdir(wdir):
 
             #create final model
             ctf=ctfmodel(k, *popt)
+            ctfs[j,:]=ctf
+
+
+            
+#           mdiff=np.subtract(rad, ctf)
+#           print(np.average(mdiff))
+            
             #ctf=ctfmodel(k, *guess)
 
             #create model for sin component
@@ -352,6 +365,19 @@ for ff in os.listdir(wdir):
 
             #get index of first crossing of x-axis -> this is the zero point
             zpoint=zerocross(sinfac)[0]
+            zvals[j]=k[zpoint]
+
+            #calc r2 value as rough goodness-of-fit
+             
+            # residual sum of squares
+            ss_res = np.sum((rad - ctf) ** 2)
+
+            # total sum of squares
+            ss_tot = np.sum((rad - np.mean(rad)) ** 2)
+
+            # r-squared
+            r2[j] = 1 - (ss_res / ss_tot)
+
 
             print("params: amp, Cs, wl, dz, dm, dec, c")
             print("guess",*guess)
@@ -368,30 +394,34 @@ for ff in os.listdir(wdir):
             axrad.set_yticklabels([])
             axrad.tick_params(color=colorVal, labelcolor=colorVal)
             axrad.imshow(img)
-            axgph.plot(k, rad, 
+            axgph.plot(k, rad,
+                label="%d deg" % secmid,
                 color=colorVal)
             axgph.plot(k, ctf, 
                 ':',
                 color=colorVal)
 
-            axgph.axvline(x=k[zpoint], color="black", linestyle='--')    
+            axgph.axvline(x=k[zpoint], color=colorVal, linestyle='--')    
             axgph.text(k[zpoint]*1.05,0.95*max(ctf),
                 ("%.3f $nm^{-1}$" % k[zpoint]),
                 horizontalalignment='left',
-                color="black")
+                color=colorVal)
+            j=j+1   #increment stepcounter
+            #end for i in steps (radial)   
 
-    #FINAL PLOT
+    #FINAL PLOT per tiff
     #adjust labels, legends etc
-
-            axgph.set_ylabel('Intensity')
-            axgph.set_xlabel('Spatial frequency (1/nm)')
+        
+        axgph.set_ylabel('Intensity')
+        axgph.set_xlabel('Spatial frequency (1/nm)')
 #            axgph.set_xlim(0,5)
-            axgph.legend(loc="upper right")
-            j=j+1
-        #end for i    
-            
+        axgph.legend(loc="upper right")
 
-        #calculate stats for each image from profiles
+        #calculate stats for each tiff from profiles
+
+        #calc variance in zvals
+         
+
         #eg. sum, average, std dev, variance
         """
         psum=np.zeros(rpoints)
@@ -444,11 +474,13 @@ for ff in os.listdir(wdir):
         plt.show()
     #   add stats to output matrices
         fnames[h]=fname
-#        vars[h]=Decimal(round(varval,2))
+        zavg[h]=np.average(zvals)
+        zvar[h]=np.var(zvals)
+        r2avg[h]=np.average(r2)
 
     #   clear the figure
         #fig.clf()
-
+        
         h=h+1
 
 #print the final list of values and save to report file
@@ -456,7 +488,7 @@ for ff in os.listdir(wdir):
 #print(vars)
 
 
-np.savetxt(os.path.join(odir, "results.txt"), np.c_[fnames, vars], newline='\n', fmt=['%12s','%12s'], header="      file     variance")
+np.savetxt(os.path.join(odir, "results.txt"), np.c_[fnames, r2avg, zavg, zvar], newline='\n', fmt=['%12s','%12s','%12s','%12s'], header="      file       r2               avg              variance")
 
 #---------------------------------
 #END
