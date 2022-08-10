@@ -54,10 +54,8 @@ guess 50.06 2700000.0 0.00335 26500 150 12.95 56
 amp=25    #amplitude
 Cs=2.7E6    #spherical aberration coeff, nm (=2.7 mm)
 wl=0.00335 #wavelength (nm) 
-#wl=0.1 #wavelength (nm) 
     #from accel voltage via de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
-#dz=27500   #defocus value (depth of field)  #FIT THIS
-dz=25000
+dz=27500   #defocus value (depth of field)  #FIT THIS
 dm=130        #damping param
 dec=20   #decay param
 c=60        #constant
@@ -95,6 +93,24 @@ gamp=80
 bf2=2        #bounding factor - defines fit limits
 bf1=1.3
 bf0=1.01
+
+OPT
+amp=25    #amplitude
+Cs=2.7E6    #spherical aberration coeff, nm (=2.7 mm)
+wl=0.00335 #wavelength (nm) 
+    #from accel voltage via de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
+dz=27500   #defocus value (depth of field)  #FIT THIS
+dm=130        #damping param
+dec=20   #decay param
+c=60        #constant
+
+gsig=0.035
+gamp=80
+
+#bounds
+bf2=2        #bounding factor - defines fit limits
+bf1=1.3
+bf0=1.01
 """
 #-------------------------------------
 #FUNCTIONS
@@ -114,6 +130,11 @@ def find_nearest(array, value):
     array = np.asarray(array)
     idx = (np.abs(array - value)).argmin()
     return idx
+
+#get index where component first crosses axis
+#https://stackoverflow.com/questions/3843017/efficiently-detect-sign-changes-in-python
+def zerocross(array):
+    return np.where(np.diff(np.sign(array)))[0]
 
 #Generate a radial profile
 def radial_profile(data, center):
@@ -269,7 +290,7 @@ for ff in os.listdir(wdir):
     #       iterate through each mask position according to secwith and secstep
         for i in steps:
             print(steps)
-            #duplicate the image
+        #   duplicate the image
             img = np.copy(imgmaster)
             secmid=i
             colorVal = scalarMap.to_rgba(j)
@@ -298,21 +319,7 @@ for ff in os.listdir(wdir):
             rad=rad[:rpoints]
             x=x[:rpoints]
             profiles[j,:,:] = np.c_[x, rad]
-            #test
-        #   PLOTS
-            #plot data, found peaks, fits
-            """
-            #guesses - roger test iso2
-            amp=10000
-            Cs=2    #spherical aberration coeff, mm
-            wl=0.0008 #wavelength (accel voltage)
-             #de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
-            dz=0.78   #defocus value (depth of field)
-            dm=1.45
-            dec=0.3
-            c=75
-            cmax=80
-            """
+
 
 
      #       https://stackoverflow.com/questions/22895794/scipys-optimize-curve-fit-limits
@@ -323,11 +330,13 @@ for ff in os.listdir(wdir):
             
             guess=np.array([amp, Cs, wl, dz, dm, dec, c, gsig, gamp])
             insin=(guess[1]*guess[2]**3*k**4 - 2*guess[3]*guess[2]*k**2)
-            sinfac=abs(np.sin( (np.pi/2)*insin))
+            sinfac=np.sin( (np.pi/2)*insin)
             ampfac=2*amp*(np.exp(-dm*k**2))
             oampfac=2*amp*(1/(x**2))
             baseline=-dec*k+c
 
+            
+           
             bounded=([amp/bf2, Cs/(bf0), wl/bf0, dz/bf2, dm/bf2, dec/bf2, c/bf1, gsig/bf2, gamp/bf2], [amp*bf2, Cs*bf0, wl*bf0, dz*bf2, dm*bf2, dec*bf2, c*bf1, gsig*bf2, gamp*bf2])
             print("guess", amp, Cs, wl, dz, dm, dec, c)
             #popt, pcov = curve_fit(ctfmodel, k, rad, p0=guess, ftol=0.00001)
@@ -338,17 +347,21 @@ for ff in os.listdir(wdir):
 
             #ctf=ctfmodel(k, *popt)
             ctf=ctfmodel(k, *guess)
+            sinfac=np.sin( (np.pi/2)*(popt[1]*popt[2]**3*k**4 - 2*popt[3]*popt[2]*k**2))
+            zpoint=zerocross(sinfac)[0]
+            print("zero point",k[zpoint])
            # insin=(popt[1]*popt[2]**3*k**4 - 2*popt[3]*popt[2]*k**2)
             print("params: amp, Cs, wl, dz, dm, dec, c")
             print("guess",*guess)
             print("opt",*popt)
 
-            order2nd=find_nearest(insin, value=-3.0)
-
-           # print(np.where((-4.2 <= insin) and (insin <= -3.8)).any())
+           # print(np.where((-1 <= sinfac) and (sinfac <= 0.1)).any())
            # print(np.where(max2))
-           # exit()
+            
             # plot the image
+            #   PLOTS
+            #plot data, found peaks, fits
+
             axrad=fig.add_axes([0.08+0.217*j,0.52,0.20,0.45])
             axrad.spines[:].set_linewidth(2)
             axrad.spines[:].set_color(colorVal)
@@ -359,16 +372,18 @@ for ff in os.listdir(wdir):
             #axgph.axvline(x=order2nd, color="black", linestyle='--')
 
             #axgph.plot(k, np.sin((np.pi/2)*20*insin), 
-        #    axgph.plot(k, ampfac, 
+            #axgph.plot(k, sinfac*80, 
             axgph.plot(k, rad, 
                 color=colorVal)
             axgph.plot(k, ctf, 
                 ':',
                 color=colorVal)
-           # axgph.text(order2nd*1.05,0.95*max(ctf),
-           #     ("%.2f px" % order2nd),
-           #     horizontalalignment='left',
-           #     color="black")
+
+            axgph.axvline(x=k[zpoint], color="black", linestyle='--')    
+            axgph.text(k[zpoint]*1.05,0.95*max(ctf),
+                ("%.3f $nm^{-1}$" % k[zpoint]),
+                horizontalalignment='left',
+                color="black")
      #       axg2=axgph.twinx()
         #    axg2.plot(k, pinsin, 
        #     axg2.plot(k, insin, 
@@ -387,7 +402,7 @@ for ff in os.listdir(wdir):
             axgph.set_ylabel('Intensity')
             axgph.set_xlabel('Spatial frequency (1/nm)')
 #            axgph.set_xlim(0,5)
-            axgph.legend(loc="upper right")
+           # axgph.legend(loc="upper right")
             j=j+1
         #end for i    
             
