@@ -414,61 +414,8 @@ for ff in os.listdir(wdir):
         
         axgph.set_ylabel('Intensity')
         axgph.set_xlabel('Spatial frequency (1/nm)')
-#            axgph.set_xlim(0,5)
         axgph.legend(loc="upper right")
-
-        #calculate stats for each tiff from profiles
-
-        #calc variance in zvals
-         
-
-        #eg. sum, average, std dev, variance
-        """
-        psum=np.zeros(rpoints)
-        for i in np.arange(len(steps)):
-            psum=np.add(psum,profiles[i,:,1])
-
-        pavg=psum/len(steps)
-
-        sq=np.zeros([len(steps),rpoints])
-        sqd=np.zeros([len(steps),rpoints])
-
-        
-        for i in np.arange(len(steps)):
-            sq[i,:]=np.subtract(profiles[i,:,1],pavg)
-            sqd[i,:]=np.multiply(sq[i,:],sq[i,:])
-
-        var=np.zeros(rpoints)
-        for i in np.arange(len(steps)):
-            var=np.add(var,sqd[i,:])
-
-        sd=np.sqrt(var)
-
-        #variance here        
-        varval=np.sum(var)/len(var)
-        
-    #   Add variance to master plot y2
-
-        #initialise variance line
-        colorVal = scalarMap.to_rgba(j)
-        vline=np.zeros(rpoints)
-        vline.fill(varval)
-        
-        axg2=axgph.twinx()
-        axg2.plot(x, var, 
-                    ':',
-                    label=fname, 
-                    color="green")
-        axg2.plot(x, vline, 
-                    '--', 
-                    label=fname, 
-                    color="green")
-        axg2.set_ylabel("Variance",color="green")
-        axg2.tick_params(axis="y",colors="green")
-        axg2.spines['right'].set_color('green')
-
-        axg2.text(len(vline),2*varval,("variance = %.2f" % varval),horizontalalignment='right',color="green")
-        """
+    
     #   output the final figure for this file
         fig.savefig(os.path.join(odir, ("out_%s.png" % fname)), dpi=300)
         
@@ -478,16 +425,20 @@ for ff in os.listdir(wdir):
         zvar[h]=np.var(zvals)
         r2avg[h]=np.average(r2)
 
-    #   clear the figure
-        fig.clf()
+    #   clear and close the figure
         
+        fig.clf()
+        plt.close()
+
+    # this is slow - about 20% performance to close after each print
+    #   better way would be to move fig and axes initialisations to above loop,  
+    #   then axgh.cla() axrad.cla() to clear axes only
+    #   - currently this leaves tickmarks on last radial profile
+    #       cant work out how to fix right now, lets just do it the slow way
+       
         h=h+1
 
 #print the final list of values and save to report file
-#print(fnames)
-#print(vars)
-
-
 np.savetxt(os.path.join(odir, "results.txt"), np.c_[fnames, r2avg, zavg, zvar], newline='\n', fmt=['%12s','%12s','%12s','%12s'], header="      file       r2               avg              variance")
 
 #---------------------------------
