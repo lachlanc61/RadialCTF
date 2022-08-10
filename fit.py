@@ -296,7 +296,7 @@ for ff in os.listdir(wdir):
     #   create series of radial masks
     #       iterate through each mask position according to secwith and secstep
         for i in steps:
-            print(steps)
+        #    print(steps)
         #   duplicate the image
             img = np.copy(imgmaster)
             secmid=i
@@ -343,7 +343,7 @@ for ff in os.listdir(wdir):
             #baseline=-dec*k+c
    
             bounded=([amp/bf3, Cs/(bf0), wl/bf0, dz/bf2, dm/bf2, dec/bf3, c/bf3, gsig/bf2, gamp/bf2], [amp*bf2, Cs*bf0, wl*bf0, dz*bf2, dm*bf2, dec*bf2, c*bf1, gsig*bf2, gamp*bf2])
-            print("guess", amp, Cs, wl, dz, dm, dec, c)
+            #print("guess", amp, Cs, wl, dz, dm, dec, c)
 
             # DO FIT 
             popt, pcov = curve_fit(ctfmodel, k, rad, p0=guess, bounds=bounded)
@@ -379,10 +379,10 @@ for ff in os.listdir(wdir):
             r2[j] = 1 - (ss_res / ss_tot)
 
 
-            print("params: amp, Cs, wl, dz, dm, dec, c")
-            print("guess",*guess)
-            print("opt",*popt)
-            print("zero point",k[zpoint])
+        #    print("params: amp, Cs, wl, dz, dm, dec, c")
+        #    print("guess",*guess)
+        #    print("opt",*popt)
+        #    print("zero point",k[zpoint])
 
             #   PLOTS
             #plot data, fits, zeropoint
@@ -471,7 +471,7 @@ for ff in os.listdir(wdir):
         """
     #   output the final figure for this file
         fig.savefig(os.path.join(odir, ("out_%s.png" % fname)), dpi=300)
-        plt.show()
+        
     #   add stats to output matrices
         fnames[h]=fname
         zavg[h]=np.average(zvals)
@@ -479,7 +479,7 @@ for ff in os.listdir(wdir):
         r2avg[h]=np.average(r2)
 
     #   clear the figure
-        #fig.clf()
+        fig.clf()
         
         h=h+1
 
