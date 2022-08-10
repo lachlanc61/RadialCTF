@@ -21,7 +21,7 @@ odirname='out'      #output directory relative to script
 
 #radial params
 centrecut=5     #minimum radius (centre mask)
-secwidth=90     #width of sector
+secwidth=45     #width of sector
 secmid=0        #centre of first sector
 secstep=45      #step between sectors
 
@@ -424,6 +424,8 @@ for ff in os.listdir(wdir):
         zavg[h]=np.average(zvals)
         zvar[h]=np.var(zvals)
         r2avg[h]=np.average(r2)
+    #   would be useful to report difference between sector ctfs as well
+    #       could re-use variance code removed last commit
 
     #   clear and close the figure
         
@@ -439,7 +441,7 @@ for ff in os.listdir(wdir):
         h=h+1
 
 #print the final list of values and save to report file
-np.savetxt(os.path.join(odir, "results.txt"), np.c_[fnames, r2avg, zavg, zvar], newline='\n', fmt=['%12s','%12s','%12s','%12s'], header="      file       r2               avg              variance")
+np.savetxt(os.path.join(odir, "results.txt"), np.c_[fnames, r2avg, zavg, zvar], newline='\n', fmt=['%12s','%12s','%12s','%12s'], header="      file       r2               zero avg          zero var")
 
 #---------------------------------
 #END
