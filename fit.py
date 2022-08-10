@@ -21,7 +21,7 @@ odirname='out'      #output directory relative to script
 
 #radial params
 centrecut=5     #minimum radius (centre mask)
-secwidth=180     #width of sector
+secwidth=90     #width of sector
 secmid=0        #centre of first sector
 secstep=180      #step between sectors
 
@@ -51,20 +51,21 @@ meters.
 guess 50.06 2700000.0 0.00335 26500 150 12.95 56
 """
 
-amp=25    #amplitude
+amp=20    #amplitude
 Cs=2.7E6    #spherical aberration coeff, nm (=2.7 mm)
 wl=0.00335 #wavelength (nm) 
     #from accel voltage via de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
 dz=27500   #defocus value (depth of field)  #FIT THIS
 dm=130        #damping param
 dec=20   #decay param
-c=60        #constant
+c=30        #constant
 
 gsig=0.035
-gamp=80
+gamp=40
 
-#bounds
-bf2=2        #bounding factor - defines fit limits
+#bounding factors - define fit limits
+bf3=99
+bf2=2        
 bf1=1.3
 bf0=1.01
 
@@ -335,7 +336,7 @@ for ff in os.listdir(wdir):
             #oampfac=2*amp*(1/(x**2))
             #baseline=-dec*k+c
    
-            bounded=([amp/bf2, Cs/(bf0), wl/bf0, dz/bf2, dm/bf2, dec/bf2, c/bf1, gsig/bf2, gamp/bf2], [amp*bf2, Cs*bf0, wl*bf0, dz*bf2, dm*bf2, dec*bf2, c*bf1, gsig*bf2, gamp*bf2])
+            bounded=([amp/bf3, Cs/(bf0), wl/bf0, dz/bf2, dm/bf2, dec/bf3, c/bf3, gsig/bf2, gamp/bf2], [amp*bf2, Cs*bf0, wl*bf0, dz*bf2, dm*bf2, dec*bf2, c*bf1, gsig*bf2, gamp*bf2])
             print("guess", amp, Cs, wl, dz, dm, dec, c)
 
             # DO FIT 
@@ -343,8 +344,8 @@ for ff in os.listdir(wdir):
      #--------------------------------------------------------
 
             #create final model
-            #ctf=ctfmodel(k, *popt)
-            ctf=ctfmodel(k, *guess)
+            ctf=ctfmodel(k, *popt)
+            #ctf=ctfmodel(k, *guess)
 
             #create model for sin component
             sinfac=np.sin( (np.pi/2)*(popt[1]*popt[2]**3*k**4 - 2*popt[3]*popt[2]*k**2))
