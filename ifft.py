@@ -8,7 +8,7 @@ import glob
 #workdir
 wdirname='data'     #working directory relative to script
 odirname='out'      #output directory relative to script
-infile = "as_amC_stable.avi"
+image_filename = "./data/Elizabeth_Tower_London.jpg"
 
 def calculate_2dft(input):
     ft = np.fft.ifftshift(input)
@@ -51,53 +51,52 @@ print("script:", script)
 print("script path:", spath)
 print("data path:", wdir)
 
-f=os.path.join(wdir,infile)
-#files = glob.glob(wdir + '/*.tif')
+files = glob.glob(wdir + '/*.tif')
 
-#for f in files:
-fname = os.path.splitext(os.path.basename(f))[0]
-print("opening ",fname)
+for f in files:
+    fname = os.path.splitext(os.path.basename(f))[0]
+    print("opening ",fname)
 
-image_filename = f
-# Read and process image
-image = plt.imread(image_filename)
-image = image[:, :, :3].mean(axis=2)  # Convert to grayscale
-# Array dimensions (array is square) and centre pixel
-# Use smallest of the dimensions and ensure it's odd
-array_size = min(image.shape) - 1 + min(image.shape) % 2
-# Crop image so it's a square image
-image = image[:array_size, :array_size]
-centre = int((array_size - 1) / 2)
-# Get all coordinate pairs in the left half of the array,
-# including the column at the centre of the array (which
-# includes the centre pixel)
-coords_left_half = (
-    (x, y) for x in range(array_size) for y in range(centre+1)
-)
-# Sort points based on distance from centre
-coords_left_half = sorted(
-    coords_left_half,
-    key=lambda x: calculate_distance_from_centre(x, centre)
-)
+    image_filename = f
+    # Read and process image
+    image = plt.imread(image_filename)
+    image = image[:, :, :3].mean(axis=2)  # Convert to grayscale
+    # Array dimensions (array is square) and centre pixel
+    # Use smallest of the dimensions and ensure it's odd
+    array_size = min(image.shape) - 1 + min(image.shape) % 2
+    # Crop image so it's a square image
+    image = image[:array_size, :array_size]
+    centre = int((array_size - 1) / 2)
+    # Get all coordinate pairs in the left half of the array,
+    # including the column at the centre of the array (which
+    # includes the centre pixel)
+    coords_left_half = (
+        (x, y) for x in range(array_size) for y in range(centre+1)
+    )
+    # Sort points based on distance from centre
+    coords_left_half = sorted(
+        coords_left_half,
+        key=lambda x: calculate_distance_from_centre(x, centre)
+    )
 
-plt.set_cmap("gray")
-ft = calculate_2dft(image)
+    plt.set_cmap("gray")
+    ft = calculate_2dft(image)
 
-# Show grayscale image and its Fourier transform
-plt.subplot(121)
-plt.imshow(image)
-plt.axis("off")
-plt.subplot(122)
-print(ft)
-print(np.abs(ft))
-cv2.imwrite(os.path.join(odir, "fft_%s.tif" % fname),np.abs(ft))
-plt.imshow(np.log(abs(ft)))
-plt.axis("off")
-plt.pause(2)
+    # Show grayscale image and its Fourier transform
+    plt.subplot(121)
+    plt.imshow(image)
+    plt.axis("off")
+    plt.subplot(122)
+    print(ft)
+    print(np.abs(ft))
+    cv2.imwrite(os.path.join(odir, "fft_%s.tif" % fname),np.abs(ft))
+    plt.imshow(np.log(abs(ft)))
+    plt.axis("off")
+    plt.pause(2)
 
-plt.show()
+    plt.show()
 
-exit()
+    exit()
 
 
 
