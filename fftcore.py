@@ -37,9 +37,9 @@ colourmap='Set1'    #colourmap for figure
 #colourmap='copper'    #colourmap for figure
 figx=20         #cm width of figure
 figy=10         #cm height of figure
-smallfont = 8
-medfont = 10
-lgfont = 12
+smallfont = 8   #default small font
+medfont = 10    #default medium font
+lgfont = 12     #default large font
 lwidth = 1  #default linewidth
 bwidth = 1  #default border width
 
