@@ -229,17 +229,17 @@ if FTYPE == ".avi":
 
 #if filetype is tif, read as stack of tifs
 elif FTYPE == ".tif":
-    #read list of files
+    #read list of files and length of list
     #   glob is random order so need to sort as well
     flist=sorted(glob.glob(wdir + "/*.tif"))
-    
+    nframes=len(flist)
+
     #assign first file and get name 
     #   purely for consistency w/ avi process, likely don't need
     f=flist[0]
     fname = os.path.splitext(os.path.basename(f))[0]
 
-    #get total number of frames as no. tifs
-    nframes=len(glob.glob1(wdir,"*.tif"))
+    print("2",nframes)
     print("opening .tifs beginning with:", f)
 
 #if filetype is not avi or tif, throw error
@@ -279,24 +279,29 @@ while success:
     axgph=fig.add_axes([0.08,0.1,0.85,0.4])
 
     #READ NEXT FRAME
-    #filetype switcher again
+    #filetype switcher again - read .avi and .tif differently
     #   paired with switcher at top of main 
     #   - be very careful that all branches send the same results downstream
     if FTYPE == ".avi":
         #read a frame from the avi, returning success
         success,readimage = vidcap.read()
-    elif FTYPE == ".tif":
-        #assign working .tif file
-        f=flist[framecount]
+    elif FTYPE == ".tif":    
+        #read image, provided current frame is less than total frames
+        if framecount < len(flist):
+            #assign working .tif file
+            f=flist[framecount]
 
-        #read in the image
-        readimage = cv2.imread(f, 0)
+            #read in the image
+            readimage = cv2.imread(f, 0)
 
-        #return success state based on whether readimage has data
-        if readimage.size >= 0:
-            success=True
+            #return success state based on whether readimage has data
+            if readimage.size >= 0:
+                success=True
+            else:
+                print("failed for",f)
+                success=False
+        #if current frame higher than filelist, report failure
         else:
-            print("failed for",f)
             success=False
     else:
         print("FATAL: filetype {%} not recognised",FTYPE)
@@ -505,6 +510,7 @@ while success:
 #        break
     
 #print the final list of report values and save to  file
+#   need to work on formatting here, can't print as eg. float because np array has to be single dtype
 np.savetxt(os.path.join(odir, "results.txt"), np.c_[times, r2avg, zavg, zsd], newline='\n', fmt=['%12s','%12s','%12s','%12s'], header="      time       r2               zero avg          zero var")
 
 print("CLEAN END")
