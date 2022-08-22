@@ -22,10 +22,16 @@ avi read from:
 #-----------------------------------
 #USER MODIFIABLE VARIABLES
 #-----------------------------------
-#workdir
+#global variables
+FOURIERSPACE=True     #is input in fourierspace already?
+FTYPE=".tif"    #valid: ".avi" or ".tif"
+DEBUG=False     #debug flag 
+
+#workdir and inputfile
 wdirname='data'     #working directory relative to script
 odirname='out'      #output directory relative to script
-infile = "as_amC_stable.avi"
+infile = "as_amC_stable.avi"    #assign input file
+                                #   only used if reading .avi
 
 #properties of input file
 pxpitch=1.252       #nm per pixel in real space
@@ -187,10 +193,6 @@ print("script:", script)
 print("script path:", spath)
 print("data path:", wdir)
 
-#initialise filepaths
-f = os.path.join(wdir,infile)
-fname = os.path.splitext(os.path.basename(f))[0]
-
 #initialise plot defaults
 plt.rc('font', size=smallfont)          # controls default text sizes
 plt.rc('axes', titlesize=smallfont)     # fontsize of the axes title
@@ -206,37 +208,68 @@ plt.rcParams['axes.linewidth'] = bwidth
 #MAIN START
 #-----------------------------------
 
-#assign video capture
-vidcap = cv2.VideoCapture(f)
+#read in either .avi or .tif files
+#   paired with if/else at beginning of frame-by-frame read
+#   clunky but best I can think of so far
+#       some possibility to have orphaned variables - eg. vidcap doesn't exist if filetype is tif
 
-#get total number of frames in avi 
-#https://stackoverflow.com/questions/25359288/how-to-know-total-number-of-frame-in-a-file-with-cv2-in-python
-#   - maybe different in more recent version of cv2
-vidlen = int(cv2.VideoCapture.get(vidcap, int(cv2.CAP_PROP_FRAME_COUNT)))
+#if filetype is avi, read frame-by-frame from avi
+if FTYPE == ".avi":
+    f = os.path.join(wdir,infile)
+    fname = os.path.splitext(os.path.basename(f))[0]
 
-print("opening ",fname)
-print("no frames:", vidlen)
+    #assign video capture
+    vidcap = cv2.VideoCapture(f)
+
+    #get total number of frames in avi 
+    #https://stackoverflow.com/questions/25359288/how-to-know-total-number-of-frame-in-a-file-with-cv2-in-python
+    #   - maybe different in more recent version of cv2
+    nframes = int(cv2.VideoCapture.get(vidcap, int(cv2.CAP_PROP_FRAME_COUNT)))
+    print("opening .avi:",fname)
+
+#if filetype is tif, read as stack of tifs
+elif FTYPE == ".tif":
+    #read list of files
+    #   glob is random order so need to sort as well
+    flist=sorted(glob.glob(wdir + "/*.tif"))
+    
+    #assign first file and get name 
+    #   purely for consistency w/ avi process, likely don't need
+    f=flist[0]
+    fname = os.path.splitext(os.path.basename(f))[0]
+
+    #get total number of frames as no. tifs
+    nframes=len(glob.glob1(wdir,"*.tif"))
+    print("opening .tifs beginning with:", f)
+
+#if filetype is not avi or tif, throw error
+else: 
+    print(f'FATAL: filetype {FTYPE} not recognised')
+    exit()
+
+print("no frames:", nframes)
 
 #initalise result arrays
-times= np.empty(vidlen, dtype="U10")    #timestamps
-zavg=np.zeros(vidlen)                   #zero point average
-zsd=np.zeros(vidlen)                    #zero point std dev
-secsd=np.zeros(vidlen)                  #std dev between sectors
-r2avg=np.zeros(vidlen)                  #average r2 value for fit
+times= np.empty(nframes, dtype="U10")    #timestamps
+zavg=np.zeros(nframes)                   #zero point average
+zsd=np.zeros(nframes)                    #zero point std dev
+secsd=np.zeros(nframes)                  #std dev between sectors
+r2avg=np.zeros(nframes)                  #average r2 value for fit
 
 #initialise tracking vars
 framecount = 0
 success = True
 
-#loop through all frames
+#--------------------
+#READ frame by frame
+#   while prev frame successfully read
+#--------------------
 while success:
 
     #initialise plot and colourmaps per frame
-    
     plt.rcParams["figure.figsize"] = [figx/2.54, figy/2.54]
     plt.rcParams["figure.figsize"] = [figx/2.54, figy/2.54]
     fig=plt.figure()
-
     steps=np.arange(0, 180, secstep)    #no. steps for radial masks
     lut = cm = plt.get_cmap(colourmap) 
     cNorm  = colors.Normalize(vmin=0, vmax=len(steps)+2)
@@ -245,57 +278,96 @@ while success:
     #initialise frame plot
     axgph=fig.add_axes([0.08,0.1,0.85,0.4])
 
-    #read in frame
-    success,rsimage = vidcap.read()
+    #READ NEXT FRAME
+    #filetype switcher again
+    #   paired with switcher at top of main 
+    #   - be very careful that all branches send the same results downstream
+    if FTYPE == ".avi":
+        #read a frame from the avi, returning success
+        success,readimage = vidcap.read()
+    elif FTYPE == ".tif":
+        #assign working .tif file
+        f=flist[framecount]
+
+        #read in the image
+        readimage = cv2.imread(f, 0)
+
+        #return success state based on whether readimage has data
+        if readimage.size >= 0:
+            success=True
+        else:
+            print("failed for",f)
+            success=False
+    else:
+        print("FATAL: filetype {%} not recognised",FTYPE)
+        exit()    
+
+    print('Read frame : ', framecount, success)
 
     #leave loop if import unsuccessful (ie. no more frames)
-    print('Read frame : ', framecount, success)
     if not success:
         break
-  
-    # Convert to grayscale
-    rsimage = rsimage[:, :, :3].mean(axis=2)  
 
-    # Array dimensions (array is square) and centre pixel
-    # Use smallest dimension and ensure value is odd
-    array_size = min(rsimage.shape) - 1 + min(rsimage.shape) % 2
+    # Check if image is rgb (shape=3 means 3-channels)
+    #   and convert to grayscale if needed
+    # error if more than 3 channels (eg. alpha channel)
+    # continue as-is if two channels
 
-    # Crop image to square
-    rsimage = rsimage[:array_size, :array_size]
-    centre = int((array_size - 1) / 2)
+    if len(readimage.shape) == 3:
+        #readimage = readimage[:, :, :3].mean(axis=2) 	#old conversion, not sure on difference
+        readimage = cv2.cvtColor(readimage, cv2.COLOR_BGR2GRAY)
 
-    # Get all coordinate pairs in the left half of the array,
-    # including the column at the centre of the array (which
-    # includes the centre pixel)
-    coords_left_half = (
-        (x, y) for x in range(array_size) for y in range(centre+1)
-    )
+    elif len(readimage.shape) > 3 :
+        print("FATAL: unrecognised format, too many channels in frame:", len(readimage.shape))
+         
+    #if input is not in fourierspace
+    #   do an FFT
+    #   otherwise assign ftimage as readimage
+    if FOURIERSPACE == False:
+        # Array dimensions (array is square) and centre pixel
+        # Use smallest dimension and ensure value is odd
+        array_size = min(readimage.shape) - 1 + min(readimage.shape) % 2
 
-    # Sort points based on distance from centre
-    coords_left_half = sorted(
-        coords_left_half,
-        key=lambda x: calculate_distance_from_centre(x, centre)
-    )
+        # Crop image to square
+        readimage = readimage[:array_size, :array_size]
+        centre = int((array_size - 1) / 2)
 
-    # fourier transform this frame
-    ftimage = (abs(calculate_2dft(rsimage)))
-    print(ftimage[0,:10])
-    """"
- # Show grayscale image and its Fourier transform
-    plt.set_cmap("gray")
-    plt.subplot(121)
-    plt.imshow(rsimage)
-    plt.axis("off")
-    plt.subplot(122)
-#    print(ftimage)
-#    print(np.abs(ftimage))
-#    cv2.imwrite(os.path.join(odir, "fft_%s.tif" % fname),np.abs(ft))
-    plt.imshow(np.log(abs(ftimage)))
-    plt.axis("off")
-    plt.pause(2)
+        # Get all coordinate pairs in the left half of the array,
+        # including the column at the centre of the array (which
+        # includes the centre pixel)
+        coords_left_half = (
+            (x, y) for x in range(array_size) for y in range(centre+1)
+        )
 
-    plt.show()
-    """
+        # Sort points based on distance from centre
+        coords_left_half = sorted(
+            coords_left_half,
+            key=lambda x: calculate_distance_from_centre(x, centre)
+        )
+
+        # fourier transform this frame
+        ftimage = (abs(calculate_2dft(readimage)))
+    else:   #if we don't need an FT
+        #assign input as output FT
+        ftimage=readimage
+    
+    if DEBUG == True:
+    # Show grayscale image and its Fourier transform
+        plt.set_cmap("gray")
+        plt.subplot(121)
+        plt.imshow(readimage)
+        plt.axis("off")
+        plt.subplot(122)
+    #    print(ftimage)
+    #    print(np.abs(ftimage))
+    #    cv2.imwrite(os.path.join(odir, "fft_%s.tif" % fname),np.abs(ft))
+        plt.imshow(np.log(abs(ftimage)))
+        plt.axis("off")
+        plt.pause(2)
+    
+        plt.show()
+    
+    
 # get image centres, outer radius
     centrex, centrey = tuple(np.array(ftimage.shape[1::-1]) / 2)
     centrex=int(centrex)
@@ -429,8 +501,8 @@ while success:
 
     framecount += 1
 
-    if framecount > 5:
-        break
+#    if framecount > 5:
+#        break
     
 #print the final list of report values and save to  file
 np.savetxt(os.path.join(odir, "results.txt"), np.c_[times, r2avg, zavg, zsd], newline='\n', fmt=['%12s','%12s','%12s','%12s'], header="      time       r2               zero avg          zero var")
