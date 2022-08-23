@@ -1,10 +1,7 @@
-Sample Module Repository
-========================
+This package calculates radial contrast transfer functions for TEM
 
-This simple project is an example repo for Python projects.
+Receives either .avi movie files or stacks of .tif files, in real or reciprocal space
 
-`Learn more <http://www.kennethreitz.org/essays/repository-structure-and-python>`_.
+Currently controlled by global variables at beginning of core.py
 
----------------
 
-If you want to learn more about ``setup.py`` files, check out `this repository <https://github.com/kennethreitz/setup.py>`_.

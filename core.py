@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.cm as cmx
 from decimal import *
+from ./src import helper
 import cv2
 import os
 import glob
@@ -22,11 +23,16 @@ avi read from:
 #-----------------------------------
 #USER MODIFIABLE VARIABLES
 #-----------------------------------
-#workdir
+#global variables
+FOURIERSPACE=True     #is input in fourierspace already?
+FTYPE=".tif"    #valid: ".avi" or ".tif"
+DEBUG=False     #debug flag 
+
+#workdir and inputfile
 wdirname='data'     #working directory relative to script
 odirname='out'      #output directory relative to script
-infile = "af_amC_fft_stable.avi"
-#infile = "as_amC_stable.avi"
+infile = "as_amC_stable.avi"    #assign input file
+                                #   only used if reading .avi
 
 #properties of input file
 pxpitch=1.252       #nm per pixel in real space
@@ -38,9 +44,9 @@ colourmap='Set1'    #colourmap for figure
 #colourmap='copper'    #colourmap for figure
 figx=20         #cm width of figure
 figy=10         #cm height of figure
-smallfont = 8
-medfont = 10
-lgfont = 12
+smallfont = 8   #default small font
+medfont = 10    #default medium font
+lgfont = 12     #default large font
 lwidth = 1  #default linewidth
 bwidth = 1  #default border width
 
@@ -188,10 +194,6 @@ print("script:", script)
 print("script path:", spath)
 print("data path:", wdir)
 
-#initialise filepaths
-f = os.path.join(wdir,infile)
-fname = os.path.splitext(os.path.basename(f))[0]
-
 #initialise plot defaults
 plt.rc('font', size=smallfont)          # controls default text sizes
 plt.rc('axes', titlesize=smallfont)     # fontsize of the axes title
@@ -207,37 +209,68 @@ plt.rcParams['axes.linewidth'] = bwidth
 #MAIN START
 #-----------------------------------
 
-#assign video capture
-vidcap = cv2.VideoCapture(f)
+#read in either .avi or .tif files
+#   paired with if/else at beginning of frame-by-frame read
+#   clunky but best I can think of so far
+#       some possibility to have orphaned variables - eg. vidcap doesn't exist if filetype is tif
 
-#get total number of frames in avi 
-#https://stackoverflow.com/questions/25359288/how-to-know-total-number-of-frame-in-a-file-with-cv2-in-python
-#   - maybe different in more recent version of cv2
-vidlen = int(cv2.VideoCapture.get(vidcap, int(cv2.CAP_PROP_FRAME_COUNT)))
+#if filetype is avi, read frame-by-frame from avi
+if FTYPE == ".avi":
+    f = os.path.join(wdir,infile)
+    fname = os.path.splitext(os.path.basename(f))[0]
 
-print("opening ",fname)
-print("no frames:", vidlen)
+    #assign video capture
+    vidcap = cv2.VideoCapture(f)
+
+    #get total number of frames in avi 
+    #https://stackoverflow.com/questions/25359288/how-to-know-total-number-of-frame-in-a-file-with-cv2-in-python
+    #   - maybe different in more recent version of cv2
+    nframes = int(cv2.VideoCapture.get(vidcap, int(cv2.CAP_PROP_FRAME_COUNT)))
+    print("opening .avi:",fname)
+
+#if filetype is tif, read as stack of tifs
+elif FTYPE == ".tif":
+    #read list of files and length of list
+    #   glob is random order so need to sort as well
+    flist=sorted(glob.glob(wdir + "/*.tif"))
+    nframes=len(flist)
+
+    #assign first file and get name 
+    #   purely for consistency w/ avi process, likely don't need
+    f=flist[0]
+    fname = os.path.splitext(os.path.basename(f))[0]
+
+    print("2",nframes)
+    print("opening .tifs beginning with:", f)
+
+#if filetype is not avi or tif, throw error
+else: 
+    print(f'FATAL: filetype {FTYPE} not recognised')
+    exit()
+
+print("no frames:", nframes)
 
 #initalise result arrays
-times= np.empty(vidlen, dtype="U10")    #timestamps
-zavg=np.zeros(vidlen)                   #zero point average
-zsd=np.zeros(vidlen)                    #zero point std dev
-secsd=np.zeros(vidlen)                  #std dev between sectors
-r2avg=np.zeros(vidlen)                  #average r2 value for fit
+times= np.empty(nframes, dtype="U10")    #timestamps
+zavg=np.zeros(nframes)                   #zero point average
+zsd=np.zeros(nframes)                    #zero point std dev
+secsd=np.zeros(nframes)                  #std dev between sectors
+r2avg=np.zeros(nframes)                  #average r2 value for fit
 
 #initialise tracking vars
 framecount = 0
 success = True
 
-#loop through all frames
+#--------------------
+#READ frame by frame
+#   while prev frame successfully read
+#--------------------
 while success:
 
     #initialise plot and colourmaps per frame
-    
     plt.rcParams["figure.figsize"] = [figx/2.54, figy/2.54]
     plt.rcParams["figure.figsize"] = [figx/2.54, figy/2.54]
     fig=plt.figure()
-
     steps=np.arange(0, 180, secstep)    #no. steps for radial masks
     lut = cm = plt.get_cmap(colourmap) 
     cNorm  = colors.Normalize(vmin=0, vmax=len(steps)+2)
@@ -246,17 +279,101 @@ while success:
     #initialise frame plot
     axgph=fig.add_axes([0.08,0.1,0.85,0.4])
 
-    #read in frame
-    success,ftimage = vidcap.read()
+    #READ NEXT FRAME
+    #filetype switcher again - read .avi and .tif differently
+    #   paired with switcher at top of main 
+    #   - be very careful that all branches send the same results downstream
+    if FTYPE == ".avi":
+        #read a frame from the avi, returning success
+        success,readimage = vidcap.read()
+    elif FTYPE == ".tif":    
+        #read image, provided current frame is less than total frames
+        if framecount < len(flist):
+            #assign working .tif file
+            f=flist[framecount]
+
+            #read in the image
+            readimage = cv2.imread(f, 0)
+
+            #return success state based on whether readimage has data
+            if readimage.size >= 0:
+                success=True
+            else:
+                print("failed for",f)
+                success=False
+        #if current frame higher than filelist, report failure
+        else:
+            success=False
+    else:
+        print("FATAL: filetype {%} not recognised",FTYPE)
+        exit()    
+
+    print('Read frame : ', framecount, success)
 
     #leave loop if import unsuccessful (ie. no more frames)
-    print('Read frame : ', framecount, success)
     if not success:
         break
 
-    # Convert to grayscale
-    ftimage = ftimage[:, :, :3].mean(axis=2)  
+    # Check if image is rgb (shape=3 means 3-channels)
+    #   and convert to grayscale if needed
+    # error if more than 3 channels (eg. alpha channel)
+    # continue as-is if two channels
 
+    if len(readimage.shape) == 3:
+        #readimage = readimage[:, :, :3].mean(axis=2) 	#old conversion, not sure on difference
+        readimage = cv2.cvtColor(readimage, cv2.COLOR_BGR2GRAY)
+
+    elif len(readimage.shape) > 3 :
+        print("FATAL: unrecognised format, too many channels in frame:", len(readimage.shape))
+         
+    #if input is not in fourierspace
+    #   do an FFT
+    #   otherwise assign ftimage as readimage
+    if FOURIERSPACE == False:
+        # Array dimensions (array is square) and centre pixel
+        # Use smallest dimension and ensure value is odd
+        array_size = min(readimage.shape) - 1 + min(readimage.shape) % 2
+
+        # Crop image to square
+        readimage = readimage[:array_size, :array_size]
+        centre = int((array_size - 1) / 2)
+
+        # Get all coordinate pairs in the left half of the array,
+        # including the column at the centre of the array (which
+        # includes the centre pixel)
+        coords_left_half = (
+            (x, y) for x in range(array_size) for y in range(centre+1)
+        )
+
+        # Sort points based on distance from centre
+        coords_left_half = sorted(
+            coords_left_half,
+            key=lambda x: calculate_distance_from_centre(x, centre)
+        )
+
+        # fourier transform this frame
+        ftimage = (abs(calculate_2dft(readimage)))
+    else:   #if we don't need an FT
+        #assign input as output FT
+        ftimage=readimage
+    
+    if DEBUG == True:
+    # Show grayscale image and its Fourier transform
+        plt.set_cmap("gray")
+        plt.subplot(121)
+        plt.imshow(readimage)
+        plt.axis("off")
+        plt.subplot(122)
+    #    print(ftimage)
+    #    print(np.abs(ftimage))
+    #    cv2.imwrite(os.path.join(odir, "fft_%s.tif" % fname),np.abs(ft))
+        plt.imshow(np.log(abs(ftimage)))
+        plt.axis("off")
+        plt.pause(2)
+    
+        plt.show()
+    
+    
 # get image centres, outer radius
     centrex, centrey = tuple(np.array(ftimage.shape[1::-1]) / 2)
     centrex=int(centrex)
@@ -277,7 +394,6 @@ while success:
 
         #duplicate the image
         img = np.copy(ftimage)
-        
         colorVal = scalarMap.to_rgba(stepcount)
         #initialise mask from sector coords
         th1=secpos-secwidth/2
@@ -290,7 +406,7 @@ while success:
         mask[centrex,:] = False
         #apply mask               
         img[~mask] = 0
-       
+
     #   get the centre and centremask
         center, ccut = (centrex, centrey), centrecut
         
@@ -395,6 +511,7 @@ while success:
 #        break
     
 #print the final list of report values and save to  file
+#   need to work on formatting here, can't print as eg. float because np array has to be single dtype
 np.savetxt(os.path.join(odir, "results.txt"), np.c_[times, r2avg, zavg, zsd], newline='\n', fmt=['%12s','%12s','%12s','%12s'], header="      time       r2               zero avg          zero var")
 
 print("CLEAN END")
