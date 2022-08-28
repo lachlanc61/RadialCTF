@@ -19,9 +19,10 @@ avi read from:
 #-----------------------------------
 #USER MODIFIABLE VARIABLES
 #-----------------------------------
-#global variables
-FOURIERSPACE=True     #is input in fourierspace already?
-FTYPE=".tif"    #valid: ".avi" or ".tif"
+
+#global flags
+FTYPE=".tif"    #filetype to ingest. Must be ".avi" or ".tif"
+FOURIERSPACE=True     #flag whether data is in fourierspace already. will attempt FFT if false
 DEBUG=False     #debug flag 
 
 #workdir and inputfile
