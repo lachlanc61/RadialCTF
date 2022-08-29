@@ -10,6 +10,18 @@ from scipy.optimize import curve_fit
 from src.utils import *
 
 """"
+Simple tool to fit radial contrast transfer function to TEM images to detect radial drift in first zero
+
+- Receives either .avi movie files or stacks of .tif files
+- Calculates FFT if in real space
+- Generates radial profiles around image centre at given phi, sector width
+- Fits CTF to each sector profile
+- calculates basic properties across stack
+
+Global variables at beginning of core.py control eg. filetype and other params
+
+Example data in ./data
+
 FFT from:
 https://thepythoncodingbook.com/2021/08/30/2d-fourier-transform-in-python-and-fourier-synthesis-of-images/
 
@@ -71,8 +83,10 @@ bf1=1.3     #highly constrained
 bf0=1.01    #effectively fixed
 
 #-------------------------------------
-#FUNCTIONS
+#FUNCTIONS 
 #-----------------------------------
+#(in ./src utils)
+
 
 #-----------------------------------
 #INITIALISE
@@ -339,7 +353,7 @@ while success:
         #create model for sin component
         sinfac=np.sin( (np.pi/2)*(popt[1]*popt[2]**3*k**4 - 2*popt[3]*popt[2]*k**2))
 
-        #get index of first crossing of x-axis -> this is the zero point
+        #get index of first crossing of x-axis -> zero point
         zpoint=zerocross(sinfac)[0]
         zvals[stepcount]=k[zpoint]
 
@@ -399,18 +413,15 @@ while success:
 
 #   clear and close the figure
 #       note: this is slow, costs about 20% performance
-#       ideally clear individual axes instead eg. axgh.cla() axrad.cla()
-#       some kind of bug with this right now
+#       ideally would clear individual axes instead eg. axgh.cla() axrad.cla()
+#       doesnt seem to clear fully, do this for now
     fig.clf()
     plt.close()
 
     framecount += 1
 
-#    if framecount > 5:
-#        break
-    
 #print the final list of report values and save to  file
-#   need to work on formatting here, can't print as eg. float because np array has to be single dtype
+#   need to improve formatting here, np array has to be single dtype so all string currently
 np.savetxt(os.path.join(odir, "results.txt"), np.c_[times, r2avg, zavg, zsd], newline='\n', fmt=['%12s','%12s','%12s','%12s'], header="      time       r2               zero avg          zero var")
 
 print("CLEAN END")
