@@ -1,12 +1,14 @@
+import cv2
+import os
 import numpy as np
 import matplotlib.pyplot as plt
 import matplotlib.colors as colors
 import matplotlib.cm as cmx
-import cv2
-import os
+
 from scipy.optimize import curve_fit
 
 import src.utils as utils
+import src.radial as radial
 
 """"
 Simple tool to fit radial contrast transfer function to TEM images to detect radial drift in first zero
@@ -138,11 +140,11 @@ while success:
         # Sort points based on distance from centre
         coords_left_half = sorted(
             coords_left_half,
-            key=lambda x: utils.calculate_distance_from_centre(x, centre)
+            key=lambda x: radial.calculate_distance_from_centre(x, centre)
         )
 
         # fourier transform this frame
-        ftimage = (abs(utils.calculate_2dft(readimage)))
+        ftimage = (abs(radial.calculate_2dft(readimage)))
     else:   #if we don't need an FT
         #assign input as output FT
         ftimage=readimage
@@ -190,8 +192,8 @@ while success:
         th1=secpos-secwidth/2
         th2=secpos+secwidth/2
         #generate the paired masks
-        mask = utils.sector_mask(img.shape,(centrex,centrey),radcut,(th1,th2))
-        mask += utils.sector_mask(img.shape,(centrex,centrey),radcut,(th1+180,th2+180))
+        mask = radial.sector_mask(img.shape,(centrex,centrey),radcut,(th1,th2))
+        mask += radial.sector_mask(img.shape,(centrex,centrey),radcut,(th1+180,th2+180))
         #add masks on centre xy column/rows
         mask[:,centrey] = False
         mask[centrex,:] = False
@@ -202,7 +204,7 @@ while success:
         center, ccut = (centrex, centrey), centrecut
         
     #   create the azimuthal profile (x,rad) and add to master matrix for this image
-        rad = utils.radial_profile(img, center)
+        rad = radial.radial_profile(img, center)
         x = np.arange(rad.shape[0])
         rad=rad[ccut:(radcut)]
         x=x[ccut:(radcut)]
@@ -223,18 +225,18 @@ while success:
         bounded=([amp/bf3, cs/(bf0), wl/bf0, dz/bf2, dm/bf2, dec/bf3, const/bf3, gsig/bf2, gamp/bf2], [amp*bf2, cs*bf0, wl*bf0, dz*bf2, dm*bf2, dec*bf2, const*bf1, gsig*bf2, gamp*bf2])
 
     #   DO FIT 
-        popt, pcov = curve_fit(utils.ctfmodel, k, rad, p0=guess, bounds=bounded)
+        popt, pcov = curve_fit(radial.ctfmodel, k, rad, p0=guess, bounds=bounded)
     #--------------------------------------------------------
 
         #populate final models
-        ctf=utils.ctfmodel(k, *popt)
+        ctf=radial.ctfmodel(k, *popt)
         ctfs[stepcount,:]=ctf
 
         #create model for sin component
         sinfac=np.sin( (np.pi/2)*(popt[1]*popt[2]**3*k**4 - 2*popt[3]*popt[2]*k**2))
 
         #get index of first crossing of x-axis -> zero point
-        zpoint=utils.zerocross(sinfac)[0]
+        zpoint=radial.zerocross(sinfac)[0]
         zvals[stepcount]=k[zpoint]
 
     #   calc r2 value as rough goodness-of-fit
