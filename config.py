@@ -34,19 +34,8 @@ centrecut=5     #minimum radius (centre mask)
 secwidth=360     #width of sector
 secstep=360      #step between sectors
 
-#initial guesses for fit function
-amp=20          #amplitude
-cs=2.7E6        #spherical aberration coeff, nm (=2.7 mm)
-wl=0.00335      #wavelength (nm) 
-    #from accel voltage via de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
-dz=27500        #defocus value (depth of field)  #FIT THIS
-dm=130          #damping param
-dec=20          #decay param
-const=60            #constant
-gsig=0.035  #gaussian sigma
-gamp=40     #gaussian amplitude
 
-"""
+
 #initial guesses for fit function
 amp=20          #amplitude
 cs=2.7E6        #spherical aberration coeff, nm (=2.7 mm)
@@ -56,9 +45,10 @@ dz=27500        #defocus value (depth of field)  #FIT THIS
 dm=130          #damping param
 dec=20          #decay param
 const=30            #constant
+#const=60           #for 100% radial fit - background is dependent on integration area
 gsig=0.035  #gaussian sigma
 gamp=40     #gaussian amplitude
-"""
+
 
 
 #fit bounding params

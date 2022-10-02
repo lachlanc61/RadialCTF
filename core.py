@@ -203,6 +203,24 @@ while success:
     #   get the centre and centremask
         center, ccut = (centrex, centrey), centrecut
         
+        #apply some manual corrections if we did the FFT
+        if fourierspace == False:
+
+        #FFTs produced by the instrument software are higher contrast
+        #   must be some preprocessing going on under the hood
+        #   replicate via a manually-refined scalefactor+baseline for now
+        #   need to talk to hitachi and get the real procedure
+
+            #scale by some factor
+            scalefactor=(500/img.max())
+            img=(img*scalefactor)
+            #lift the baseline
+            img=(img+40)
+            #convert to uint8
+            img=img.astype('uint8')
+            #reapply mask
+            img[~mask] = 0
+
     #   create the azimuthal profile (x,rad) and add to master matrix for this image
         rad = radial.radial_profile(img, center)
         x = np.arange(rad.shape[0])
@@ -293,10 +311,7 @@ while success:
  #output the final figure for this frame
     fig.savefig(os.path.join(odir, ("out_%s.png" % framecount)), dpi=300)
 
-#   clear and close the figure
-#       note: this is slow, costs about 20% performance
-#       ideally would clear individual axes instead eg. axgh.cla() axrad.cla()
-#       doesnt seem to clear fully, do this for now
+#   clear and close the figure after each export
     fig.clf()
     plt.close()
 
