@@ -1,26 +1,24 @@
 # Overview
 
-This tool is developed to monitor the contrast transfer function (CTF) of a transmission electron microscope (TEM) during operation. These instruments use a highly-focused electron beam and a series of electromagnetic lenses to perform nanometer-scale imaging, at resolutions far exceeding those possible with an optical microscope. 
+This tool monitors the contrast transfer function (CTF) from a transmission electron microscope during operation. These instruments use a highly-focused electron beam and a series of electromagnetic lenses to perform nanometer-scale imaging, at resolution far exceeding that of an optical microscope. 
 
-Unsurprisingly, operation is highly technical. A particularly challenging aspect is the selection of the "defocus" parameter; novice operators will tend to maximise contrast at the expense of detail, reducing the spatial-resolution of the image. 
+Operation of the instrument is highly technical. A particular challenge is the selection of the "defocus" parameter; novice operators will tend to maximise contrast at the expense of detail, reducing the spatial resolution of the image.
 
-This tool is designed to assist with these challenges. It processes a time-series from the microscope, and performs fourier transformation (if needed), radial integration, and fitting of the contrast-transfer function. This produces simple metrics reporting the defocus offset and anisotropy of the image, which can be monitored during measurement to assist the operator.  
+This tool is designed to assist with these challenges. It processes a time-series from the microscope, and performs fourier transformation, radial integration, and fitting of the contrast-transfer function. It condenses these into simple metrics which can be monitored by the operator during measurement.  
 
 # Summary:
 
-- parses stacked greyscale .tif images or movies
+- parses stacked greyscale .tif or .avi
 
 - performs a fast fourier transform, converting real-space images to frequency-space
 
-- applies series of radial masks to evaluate anisotropy
-
 - performs azimuthal averaging to obtain profiles of intensity vs frequency
 
-- fits the analytical contrast transfer function to these profiles
+- applies series of radial masks to evaluate anisotropy
 
-- exports plots of sectors and fitted functions
+- fits the contrast transfer function to these profiles, and plots the result
 
-- reports goodness of fit, position of first minimum, and variance in first minimum with angle
+- reports r-factor, position of first minimum, and variance in first minimum with angle
 
 # Method
 
@@ -30,19 +28,19 @@ The data is....
     - (src.radial)
 
 <p align="left">
-  <img src="./docs/IMG/fileformat4.png" alt="Spectrum" width="1024">
+  <img src="./docs/IMG/fftout_mod.png" alt="Spectrum" width="800">
   <br />
 </p>
 
 #
 
 <p align="left">
-  <img src="./docs/IMG/hsv_spectrum2.png" alt="Spectrum" width="700">
+  <img src="./docs/IMG/aziprofile_mod2.png" alt="Spectrum" width="952">
   <br />
 </p>
 
 <p align="left">
-  <img src="./docs/IMG/geo_colours2.png" alt="Spectrum" width="700">
+  <img src="./docs/IMG/radial_comparison.png" alt="Spectrum" width="950">
   <br />
 </p>
 
