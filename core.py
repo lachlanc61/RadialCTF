@@ -4,10 +4,9 @@ import matplotlib.colors as colors
 import matplotlib.cm as cmx
 import cv2
 import os
-import glob
-from decimal import *
 from scipy.optimize import curve_fit
-from src.utils import *
+
+import src.utils as utils
 
 """"
 Simple tool to fit radial contrast transfer function to TEM images to detect radial drift in first zero
@@ -18,7 +17,7 @@ Simple tool to fit radial contrast transfer function to TEM images to detect rad
 - Fits CTF to each sector profile
 - calculates basic properties across stack
 
-Global variables at beginning of core.py control eg. filetype and other params
+Variables in config.py control filetype and other params
 
 Example data in ./data
 
@@ -28,139 +27,16 @@ https://thepythoncodingbook.com/2021/08/30/2d-fourier-transform-in-python-and-fo
 avi read from:
 #https://stackoverflow.com/questions/33311153/python-extracting-and-saving-video-frames
 """
-#-----------------------------------
-#USER MODIFIABLE VARIABLES
-#-----------------------------------
-
-#global flags
-FTYPE=".tif"    #filetype to ingest. Must be ".avi" or ".tif"
-FOURIERSPACE=True     #flag whether data is in fourierspace already. will attempt FFT if false
-DEBUG=False     #debug flag 
-
-#workdir and inputfile
-wdirname='data'     #working directory relative to script
-odirname='out'      #output directory relative to script
-infile = "as_amC_stable.avi"    #assign input file
-                                #   only used if reading .avi
-
-#properties of input file
-pxpitch=1.252       #nm per pixel in real space
-pxdim=512           #width of RS image (should really calc this directly...)
-etime=0.1           #seconds per frame
-
-#figure params
-colourmap='Set1'    #colourmap for figure
-#colourmap='copper'    #colourmap for figure
-figx=20         #cm width of figure
-figy=10         #cm height of figure
-smallfont = 8   #default small font
-medfont = 10    #default medium font
-lgfont = 12     #default large font
-lwidth = 1  #default linewidth
-bwidth = 1  #default border width
-
-#radial params
-centrecut=5     #minimum radius (centre mask)
-secwidth=90     #width of sector
-secstep=45      #step between sectors
-
-#initial guesses for fit function
-amp=20          #amplitude
-Cs=2.7E6        #spherical aberration coeff, nm (=2.7 mm)
-wl=0.00335      #wavelength (nm) 
-    #from accel voltage via de broglie eqn eg. https://www.ou.edu/research/electron/bmz5364/calc-kv.html
-dz=27500        #defocus value (depth of field)  #FIT THIS
-dm=130          #damping param
-dec=20          #decay param
-c=30            #constant
-gsig=0.035  #gaussian sigma
-gamp=40     #gaussian amplitude
-
-#fit bounding params
-bf3=99      #very free
-bf2=2       #constrained     
-bf1=1.3     #highly constrained
-bf0=1.01    #effectively fixed
-
-#-------------------------------------
-#FUNCTIONS 
-#-----------------------------------
-#(in ./src utils)
-
 
 #-----------------------------------
 #INITIALISE
 #-----------------------------------
 
-#initialise directories relative to script
-script = os.path.realpath(__file__) #_file = current script
-spath=os.path.dirname(script) 
-wdir=os.path.join(spath,wdirname)
-odir=os.path.join(spath,odirname)
-print("script:", script)
-print("script path:", spath)
-print("data path:", wdir)
-
-#initialise plot defaults
-plt.rc('font', size=smallfont)          # controls default text sizes
-plt.rc('axes', titlesize=smallfont)     # fontsize of the axes title
-plt.rc('axes', labelsize=medfont)       # fontsize of the x and y labels
-plt.rc('xtick', labelsize=smallfont)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=smallfont)    # fontsize of the tick labels
-plt.rc('legend', fontsize=smallfont)    # legend fontsize
-plt.rc('figure', titlesize=lgfont)      # fontsize of the figure title
-plt.rc('lines', linewidth=lwidth)
-plt.rcParams['axes.linewidth'] = bwidth
+f, fname, script, spath, wdir, odir, vidcap, flist, nframes, ftype = utils.initialise()
 
 #-----------------------------------
 #MAIN START
 #-----------------------------------
-
-#read in either .avi or .tif files
-#   paired with if/else at beginning of frame-by-frame read
-#   clunky but best I can think of so far
-#       some possibility to have orphaned variables - eg. vidcap doesn't exist if filetype is tif
-
-#if filetype is avi, read frame-by-frame from avi
-if FTYPE == ".avi":
-    f = os.path.join(wdir,infile)
-    fname = os.path.splitext(os.path.basename(f))[0]
-
-    #assign video capture
-    vidcap = cv2.VideoCapture(f)
-
-    #get total number of frames in avi 
-    #https://stackoverflow.com/questions/25359288/how-to-know-total-number-of-frame-in-a-file-with-cv2-in-python
-    #   - maybe different in more recent version of cv2
-    nframes = int(cv2.VideoCapture.get(vidcap, int(cv2.CAP_PROP_FRAME_COUNT)))
-    print("opening .avi:",fname)
-
-#if filetype is tif, read as stack of tifs
-elif FTYPE == ".tif":
-    #read list of files and length of list
-    #   glob is random order so need to sort as well
-    flist=sorted(glob.glob(wdir + "/*.tif"))
-    nframes=len(flist)
-
-    #return success state based on whether readimage has data
-    if len(flist) == 0:
-        print(f'FATAL: no files found in {wdir}')
-        exit()
-
-    #assign first file and get name 
-    #   purely for consistency w/ avi process, likely don't need
-    f=flist[0]
-    fname = os.path.splitext(os.path.basename(f))[0]
-
-    print("2",nframes)
-    print("opening .tifs beginning with:", f)
-
-#if filetype is not avi or tif, throw error
-else: 
-    print(f'FATAL: filetype {FTYPE} not recognised')
-    exit()
-
-print("no frames:", nframes)
 
 #initalise result arrays
 times= np.empty(nframes, dtype="U10")    #timestamps
@@ -179,6 +55,9 @@ success = True
 #--------------------
 while success:
 
+    figx, figy, secstep, colourmap, fourierspace, debug, centrecut, secwidth, \
+        pxpitch, pxdim = utils.getimgparams()
+
     #initialise plot and colourmaps per frame
     plt.rcParams["figure.figsize"] = [figx/2.54, figy/2.54]
     plt.rcParams["figure.figsize"] = [figx/2.54, figy/2.54]
@@ -195,10 +74,10 @@ while success:
     #filetype switcher again - read .avi and .tif differently
     #   paired with switcher at top of main 
     #   - be very careful that all branches send the same results downstream
-    if FTYPE == ".avi":
+    if ftype == ".avi":
         #read a frame from the avi, returning success
         success,readimage = vidcap.read()
-    elif FTYPE == ".tif":    
+    elif ftype == ".tif":    
         #read image, provided current frame is less than total frames
         if framecount < len(flist):
             #assign working .tif file
@@ -217,8 +96,7 @@ while success:
         else:
             success=False
     else:
-        print("FATAL: filetype {%} not recognised",FTYPE)
-        exit()    
+        raise TypeError(f'Filetype {ftype} not recognised')
 
     print('Read frame : ', framecount, success)
 
@@ -241,7 +119,7 @@ while success:
     #if input is not in fourierspace
     #   do an FFT
     #   otherwise assign ftimage as readimage
-    if FOURIERSPACE == False:
+    if fourierspace == False:
         # Array dimensions (array is square) and centre pixel
         # Use smallest dimension and ensure value is odd
         array_size = min(readimage.shape) - 1 + min(readimage.shape) % 2
@@ -260,17 +138,17 @@ while success:
         # Sort points based on distance from centre
         coords_left_half = sorted(
             coords_left_half,
-            key=lambda x: calculate_distance_from_centre(x, centre)
+            key=lambda x: utils.calculate_distance_from_centre(x, centre)
         )
 
         # fourier transform this frame
-        ftimage = (abs(calculate_2dft(readimage)))
+        ftimage = (abs(utils.calculate_2dft(readimage)))
     else:   #if we don't need an FT
         #assign input as output FT
         ftimage=readimage
     
     #if debugmode is on, show first frame realspace vs FFT then exit
-    if DEBUG == True:
+    if debug == True:
     # Show grayscale image and its Fourier transform
         plt.set_cmap("gray")
         plt.subplot(121)
@@ -312,8 +190,8 @@ while success:
         th1=secpos-secwidth/2
         th2=secpos+secwidth/2
         #generate the paired masks
-        mask = sector_mask(img.shape,(centrex,centrey),radcut,(th1,th2))
-        mask += sector_mask(img.shape,(centrex,centrey),radcut,(th1+180,th2+180))
+        mask = utils.sector_mask(img.shape,(centrex,centrey),radcut,(th1,th2))
+        mask += utils.sector_mask(img.shape,(centrex,centrey),radcut,(th1+180,th2+180))
         #add masks on centre xy column/rows
         mask[:,centrey] = False
         mask[centrex,:] = False
@@ -324,7 +202,7 @@ while success:
         center, ccut = (centrex, centrey), centrecut
         
     #   create the azimuthal profile (x,rad) and add to master matrix for this image
-        rad = radial_profile(img, center)
+        rad = utils.radial_profile(img, center)
         x = np.arange(rad.shape[0])
         rad=rad[ccut:(radcut)]
         x=x[ccut:(radcut)]
@@ -338,23 +216,25 @@ while success:
         # k=x
         k=x/(pxpitch*pxdim)  
         
-        guess=np.array([amp, Cs, wl, dz, dm, dec, c, gsig, gamp])
+        amp, cs, wl, dz, dm, dec, const, gsig, gamp, bf0, bf1, bf2, bf3, etime = utils.getfitparams()
 
-        bounded=([amp/bf3, Cs/(bf0), wl/bf0, dz/bf2, dm/bf2, dec/bf3, c/bf3, gsig/bf2, gamp/bf2], [amp*bf2, Cs*bf0, wl*bf0, dz*bf2, dm*bf2, dec*bf2, c*bf1, gsig*bf2, gamp*bf2])
+        guess=np.array([amp, cs, wl, dz, dm, dec, const, gsig, gamp])
+
+        bounded=([amp/bf3, cs/(bf0), wl/bf0, dz/bf2, dm/bf2, dec/bf3, const/bf3, gsig/bf2, gamp/bf2], [amp*bf2, cs*bf0, wl*bf0, dz*bf2, dm*bf2, dec*bf2, const*bf1, gsig*bf2, gamp*bf2])
 
     #   DO FIT 
-        popt, pcov = curve_fit(ctfmodel, k, rad, p0=guess, bounds=bounded)
+        popt, pcov = curve_fit(utils.ctfmodel, k, rad, p0=guess, bounds=bounded)
     #--------------------------------------------------------
 
         #populate final models
-        ctf=ctfmodel(k, *popt)
+        ctf=utils.ctfmodel(k, *popt)
         ctfs[stepcount,:]=ctf
 
         #create model for sin component
         sinfac=np.sin( (np.pi/2)*(popt[1]*popt[2]**3*k**4 - 2*popt[3]*popt[2]*k**2))
 
         #get index of first crossing of x-axis -> zero point
-        zpoint=zerocross(sinfac)[0]
+        zpoint=utils.zerocross(sinfac)[0]
         zvals[stepcount]=k[zpoint]
 
     #   calc r2 value as rough goodness-of-fit
