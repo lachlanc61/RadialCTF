@@ -39,15 +39,10 @@ The data is....
   <br />
 </p>
 
-<p align="left">
-  <img src="./docs/IMG/radial_comparison.png" alt="Spectrum" width="950">
-  <br />
-</p>
-
 #
 
 <p align="left">
-  <img src="./docs/IMG/geo_clusters.png" alt="Spectrum" width="1024">
+  <img src="./docs/IMG/radial_comparison.png" alt="Spectrum" width="950">
   <br />
 </p>
 
