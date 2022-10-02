@@ -2,7 +2,7 @@
 
 This tool is developed to monitor the contrast transfer function (CTF) of a transmission electron microscope (TEM) during operation. These instruments use a highly-focused electron beam and a series of electromagnetic lenses to perform nanometer-scale imaging, at resolutions far exceeding those possible with an optical microscope. 
 
-Unsurprisingly, operation is highly technical. A particularly challenging aspect is the selection of the "defocus" parameter; novice operators will tend to maximise contrast at the expense of detail, reducing the spatial-resolution of the image. Lens drift may also lead to asymmetric effects, which can be difficult for an inexperienced operator to identify.
+Unsurprisingly, operation is highly technical. A particularly challenging aspect is the selection of the "defocus" parameter; novice operators will tend to maximise contrast at the expense of detail, reducing the spatial-resolution of the image. 
 
 This tool is designed to assist with these challenges. It processes a time-series from the microscope, and performs fourier transformation (if needed), radial integration, and fitting of the contrast-transfer function. This produces simple metrics reporting the defocus offset and anisotropy of the image, which can be monitored during measurement to assist the operator.  
 
