@@ -70,7 +70,7 @@ In order to identify anisotropy (ie. shifts with orientation due to lens drift),
 - the profiles and fits are saved for review
 
 <p align="left">
-  <img src="./docs/IMG/radial_comparison.png" alt="Spectrum" width="950">
+  <img src="./docs/IMG/radial_comparison2.png" alt="Spectrum" width="950">
   <br />
 </p>
 

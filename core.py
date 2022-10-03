@@ -272,6 +272,10 @@ while success:
         #   PLOTS
         #plot data, fits, zeropoint
 
+        if stepcount==0: 
+            startmax=(max(ctf))
+            startz=k[zpoint]
+
         axrad=fig.add_axes([0.08+0.217*stepcount,0.52,0.20,0.45])
         axrad.spines[:].set_linewidth(2)
         axrad.spines[:].set_color(colorVal)
@@ -287,12 +291,11 @@ while success:
             color=colorVal)
 
         axgph.axvline(x=k[zpoint], color=colorVal, linestyle='--')    
-        axgph.text(k[zpoint]*1.05,0.95*max(ctf),
+        axgph.text(startz*1.05,0.95*startmax-stepcount*4,
             ("%.3f $nm^{-1}$" % k[zpoint]),
             horizontalalignment='left',
             color=colorVal)
         stepcount += 1   #increment stepcounter
-
     #FINAL PLOT per tiff
 
     #adjust labels, legends etc    
