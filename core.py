@@ -1,3 +1,4 @@
+# %load core.py
 import cv2
 import os
 import numpy as np
@@ -100,7 +101,7 @@ while success:
     else:
         raise TypeError(f'Filetype {ftype} not recognised')
 
-    print('Read frame : ', framecount, success)
+    print('Read frame : ', framecount)
 
     #leave loop if import unsuccessful (ie. no more frames)
     if not success:
@@ -300,11 +301,12 @@ while success:
     axgph.legend(loc="upper right")
    
     #add stats to output matrices
-    times[framecount]=float(etime*framecount)
-    zavg[framecount]=float(np.average(zvals))
-    zsd[framecount]=float(np.std(zvals))
-    r2avg[framecount]=float(np.average(r2))
+    times[framecount]=float(etime*(framecount+1))
+    zavg[framecount]=np.average(zvals)
+    zsd[framecount]=np.std(zvals)
+    r2avg[framecount]=np.average(r2)
 
+#    print("et, fc, times", etime, framecount, times[framecount])
 #   would be useful to report difference between sector ctfs as well
 
 
@@ -318,9 +320,9 @@ while success:
     framecount += 1
 
 #print the final list of report values and save to  file
-#   need to improve formatting here, np array has to be single dtype so all string currently
-#np.savetxt(os.path.join(odir, "results.txt"), np.c_[times, r2avg, zavg, zsd], newline='\n', fmt=['%12s','%12s','%12s','%12s'], header="      time       r2               zero avg          zero var")
-np.savetxt(os.path.join(odir, "results.txt"), np.c_[times, r2avg, zavg, zsd], newline='\n', fmt=['%.1f','%.3f','%.3f','%.6f'])#, header="#      time       r2               zero avg          zero var")
+#   times is a string at this point, convert to float
+times=times.astype(np.float64)
 
+np.savetxt(os.path.join(odir, "results.txt"), np.c_[times, r2avg, zavg, zsd], newline='\n', fmt=['%12.2f','%12.5f','%12.5f','%12.6f'], header="      time           r2     zero avg     zero var")
 
 print("CLEAN END")

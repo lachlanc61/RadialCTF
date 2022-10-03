@@ -16,7 +16,7 @@ infile = "alternate/as_amC_stable.avi"    #assign input file
 #properties of input file
 pxpitch=1.252       #nm per pixel in real space
 pxdim=512           #width of RS image (should really calc this directly...)
-etime=0.1           #seconds per frame
+etime=0.05           #seconds per frame
 
 #figure params
 colourmap='Set1'    #colourmap for figure
@@ -31,9 +31,8 @@ bwidth = 1  #default border width
 
 #radial params
 centrecut=5     #minimum radius (centre mask)
-secwidth=360     #width of sector
-secstep=360      #step between sectors
-
+secwidth=90     #width of sector
+secstep=45      #step between sectors
 
 
 #initial guesses for fit function

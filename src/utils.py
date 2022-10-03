@@ -76,7 +76,6 @@ def initialise():
         f=flist[0]
         fname = os.path.splitext(os.path.basename(f))[0]
 
-        print("2",nframes)
         print("opening .tifs beginning with:", f)
 
         vidcap=None
