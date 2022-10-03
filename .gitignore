@@ -1,6 +1,6 @@
 #data and output folders
-data/alternate
-./out
+./data/alternate
+./out/*
 
 
 
