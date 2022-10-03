@@ -10,7 +10,7 @@ DEBUG=False     #debug flag
 #workdir and inputfile
 wdirname='data'     #working directory relative to script
 odirname='out'      #output directory relative to script
-infile = "as_amC_stable.avi"    #assign input file
+infile = "alternate/as_amC_stable.avi"    #assign input file
                                 #   only used if reading .avi
 
 #properties of input file
@@ -48,8 +48,6 @@ const=30            #constant
 #const=60           #for 100% radial fit - background is dependent on integration area
 gsig=0.035  #gaussian sigma
 gamp=40     #gaussian amplitude
-
-
 
 #fit bounding params
 bf3=99      #very free
