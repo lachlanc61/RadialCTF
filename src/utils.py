@@ -2,19 +2,27 @@ import numpy as np
 import cv2
 import os
 import glob
+import yaml
 import matplotlib.pyplot as plt
 
 from scipy.stats import norm
 
+def readcfg(filename):
+    dir = os.path.realpath(__file__) #_file = current script
+    dir=os.path.dirname(dir) 
+    dir=os.path.dirname(dir)    #second call to get src/..
 
-import config
+    yamlfile=os.path.join(dir,filename)
 
-def initialise():
+    with open(yamlfile, "r") as f:
+        return yaml.safe_load(f)
+
+def initialise(config):
     script = os.path.realpath(__file__) #_file = current script
     spath=os.path.dirname(script) 
-    spath=os.path.dirname(spath)
-    wdir=os.path.join(spath,config.wdirname)
-    odir=os.path.join(spath,config.odirname)
+    spath=os.path.dirname(spath)    #second call to get src/..
+    wdir=os.path.join(spath,config['wdirname'])
+    odir=os.path.join(spath,config['odirname'])
     print(
     "---------------------------\n"
     "PATHS\n"
@@ -27,17 +35,17 @@ def initialise():
 
     if True:
         #   initialise plot defaults
-        plt.rc('font', size=config.smallfont)          # controls default text sizes
-        plt.rc('axes', titlesize=config.smallfont)     # fontsize of the axes title
-        plt.rc('axes', labelsize=config.medfont)       # fontsize of the x and y labels
-        plt.rc('xtick', labelsize=config.smallfont)    # fontsize of the tick labels
-        plt.rc('ytick', labelsize=config.smallfont)    # fontsize of the tick labels
-        plt.rc('legend', fontsize=config.smallfont)    # legend fontsize
-        plt.rc('figure', titlesize=config.lgfont)      # fontsize of the figure title
-        plt.rc('lines', linewidth=config.lwidth)
-        plt.rcParams['axes.linewidth'] = config.bwidth
+        plt.rc('font', size=config['smallfont'])          # controls default text sizes
+        plt.rc('axes', titlesize=config['smallfont'])     # fontsize of the axes title
+        plt.rc('axes', labelsize=config['medfont'])       # fontsize of the x and y labels
+        plt.rc('xtick', labelsize=config['smallfont'])    # fontsize of the tick labels
+        plt.rc('ytick', labelsize=config['smallfont'])    # fontsize of the tick labels
+        plt.rc('legend', fontsize=config['smallfont'])    # legend fontsize
+        plt.rc('figure', titlesize=config['lgfont'])      # fontsize of the figure title
+        plt.rc('lines', linewidth=config['lwidth'])
+        plt.rcParams['axes.linewidth'] = config['bwidth']
 
-    ftype=config.FTYPE
+    ftype=config['FTYPE']
     #read in either .avi or .tif files
     #   paired with if/else at beginning of frame-by-frame read
     #   clunky but works for now
@@ -45,7 +53,7 @@ def initialise():
 
     #if filetype is avi, read frame-by-frame from avi
     if ftype == ".avi":
-        f = os.path.join(wdir,config.infile)
+        f = os.path.join(wdir,config['infile'])
         fname = os.path.splitext(os.path.basename(f))[0]
 
         #assign video capture
@@ -88,36 +96,28 @@ def initialise():
 
     return f, fname, script, spath, wdir, odir, vidcap, flist, nframes, ftype
 
-def getimgparams():
-    figx=config.figx
-    figy=config.figy
-    secstep=config.secstep
-    colourmap=config.colourmap
-    fourierspace=bool(config.FOURIERSPACE)
-    debug=bool(config.DEBUG)
-    centrecut=config.centrecut
-    secwidth=config.secwidth
-    pxpitch=config.pxpitch
-    pxdim=config.pxdim
-    return figx, figy, secstep, colourmap, fourierspace, debug, centrecut, secwidth, pxpitch, pxdim
+def getguess(config):
+    """
+    break out config settings into initial param guess
+    """
+    guess=np.array([config['amp'], float(config['cs']), config['wl'], config['dz'], config['dm'], config['dec'], config['const'], config['gsig'], config['gamp']])
+    return guess
 
+def getbounds(config):
+    """
+    break out config settings into initial bounds for fit
+    """
+    bf0=config['bf0']
+    bf1=config['bf1']
+    bf2=config['bf2']
+    bf3=config['bf3']
 
-def getfitparams():
-    amp=config.amp
-    cs=config.cs
-    wl=config.wl
-    dz=config.dz
-    dm=config.dm
-    dec=config.dec
-    const=config.const
-    gsig=config.gsig
-    gamp=config.gamp
-    bf0=config.bf0
-    bf1=config.bf1
-    bf2=config.bf2
-    bf3=config.bf3
-    etime=config.etime
-    return amp, cs, wl, dz, dm, dec, const, gsig, gamp, bf0, bf1, bf2, bf3, etime   
+    bounded=([config['amp']/bf3, float(config['cs'])/(bf0), config['wl']/bf0, config['dz']/bf2, \
+        config['dm']/bf2, config['dec']/bf3, config['const']/bf3, config['gsig']/bf2, config['gamp']/bf2], \
+        [config['amp']*bf2, float(config['cs'])*bf0, config['wl']*bf0, config['dz']*bf2, config['dm']*bf2, \
+        config['dec']*bf2, config['const']*bf1, config['gsig']*bf2, config['gamp']*bf2])
+
+    return bounded
 
 #outputs gaussian with max y = amp
 def ngauss(x, mu, sig1, amp):

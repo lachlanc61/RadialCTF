@@ -30,12 +30,19 @@ https://thepythoncodingbook.com/2021/08/30/2d-fourier-transform-in-python-and-fo
 avi read from:
 #https://stackoverflow.com/questions/33311153/python-extracting-and-saving-video-frames
 """
+#-----------------------------------
+#vars
+#-----------------------------------
+
+CONFIG_FILE='config.yaml'
 
 #-----------------------------------
 #INITIALISE
 #-----------------------------------
 
-f, fname, script, spath, wdir, odir, vidcap, flist, nframes, ftype = utils.initialise()
+config=utils.readcfg(CONFIG_FILE)
+
+f, fname, script, spath, wdir, odir, vidcap, flist, nframes, ftype = utils.initialise(config)
 
 #-----------------------------------
 #MAIN START
@@ -58,15 +65,11 @@ success = True
 #--------------------
 while success:
 
-    figx, figy, secstep, colourmap, fourierspace, debug, centrecut, secwidth, \
-        pxpitch, pxdim = utils.getimgparams()
-
     #initialise plot and colourmaps per frame
-    plt.rcParams["figure.figsize"] = [figx/2.54, figy/2.54]
-    plt.rcParams["figure.figsize"] = [figx/2.54, figy/2.54]
+    plt.rcParams["figure.figsize"] = [config['figx']/2.54, config['figy']/2.54]
     fig=plt.figure()
-    steps=np.arange(0, 180, secstep)    #no. steps for radial masks
-    lut = cm = plt.get_cmap(colourmap) 
+    steps=np.arange(0, 180, config['secstep'])    #no. steps for radial masks
+    lut = cm = plt.get_cmap(config['colourmap']) 
     cNorm  = colors.Normalize(vmin=0, vmax=len(steps)+2)
     scalarMap = cmx.ScalarMappable(norm=cNorm, cmap=lut)
 
@@ -122,7 +125,7 @@ while success:
     #if input is not in fourierspace
     #   do an FFT
     #   otherwise assign ftimage as readimage
-    if fourierspace == False:
+    if config['FOURIERSPACE'] == False:
         # Array dimensions (array is square) and centre pixel
         # Use smallest dimension and ensure value is odd
         array_size = min(readimage.shape) - 1 + min(readimage.shape) % 2
@@ -151,7 +154,7 @@ while success:
         ftimage=readimage
     
     #if debugmode is on, show first frame realspace vs FFT then exit
-    if debug == True:
+    if config['DEBUG'] == True:
     # Show grayscale image and its Fourier transform
         plt.set_cmap("gray")
         plt.subplot(121)
@@ -173,7 +176,7 @@ while success:
     centrex=int(centrex)
     centrey=int(centrey)
     radcut=int(max(centrex, centrey)*0.9)
-    rpoints=radcut-centrecut-1
+    rpoints=radcut-config['centrecut']-1
     
     #initialise the profile array
     profiles=np.zeros((len(steps),rpoints,2))
@@ -190,8 +193,8 @@ while success:
         img = np.copy(ftimage)
         colorVal = scalarMap.to_rgba(stepcount)
         #initialise mask from sector coords
-        th1=secpos-secwidth/2
-        th2=secpos+secwidth/2
+        th1=secpos-config['secwidth']/2
+        th2=secpos+config['secwidth']/2
         #generate the paired masks
         mask = radial.sector_mask(img.shape,(centrex,centrey),radcut,(th1,th2))
         mask += radial.sector_mask(img.shape,(centrex,centrey),radcut,(th1+180,th2+180))
@@ -202,10 +205,10 @@ while success:
         img[~mask] = 0
 
     #   get the centre and centremask
-        center, ccut = (centrex, centrey), centrecut
+        center, ccut = (centrex, centrey), config['centrecut']
         
         #apply some manual corrections if we did the FFT
-        if fourierspace == False:
+        if config['FOURIERSPACE'] == False:
 
         #FFTs produced by the instrument software are higher contrast
         #   must be some preprocessing going on under the hood
@@ -235,13 +238,11 @@ while success:
     #   FITTING HERE
     #--------------------------------------------------------
         # k=x
-        k=x/(pxpitch*pxdim)  
-        
-        amp, cs, wl, dz, dm, dec, const, gsig, gamp, bf0, bf1, bf2, bf3, etime = utils.getfitparams()
+        k=x/(config['pxpitch']*config['pxdim'])  
 
-        guess=np.array([amp, cs, wl, dz, dm, dec, const, gsig, gamp])
+        guess=utils.getguess(config)
 
-        bounded=([amp/bf3, cs/(bf0), wl/bf0, dz/bf2, dm/bf2, dec/bf3, const/bf3, gsig/bf2, gamp/bf2], [amp*bf2, cs*bf0, wl*bf0, dz*bf2, dm*bf2, dec*bf2, const*bf1, gsig*bf2, gamp*bf2])
+        bounded=utils.getbounds(config)
 
     #   DO FIT 
         popt, pcov = curve_fit(radial.ctfmodel, k, rad, p0=guess, bounds=bounded)
@@ -304,7 +305,7 @@ while success:
     axgph.legend(loc="upper right")
    
     #add stats to output matrices
-    times[framecount]=float(etime*(framecount+1))
+    times[framecount]=float(config['etime']*(framecount+1))
     zavg[framecount]=np.average(zvals)
     zsd[framecount]=np.std(zvals)
     r2avg[framecount]=np.average(r2)
