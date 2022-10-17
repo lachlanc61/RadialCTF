@@ -113,7 +113,7 @@ while success:
     # Check if image is rgb (shape=3 means 3-channels)
     #   and convert to grayscale if needed
     # error if more than 3 channels (eg. alpha channel)
-    # continue as-is if two channels
+    # continue as-is if two channels (ie. mono+alpha)
 
     if len(readimage.shape) == 3:
         #readimage = readimage[:, :, :3].mean(axis=2) 	#old conversion, not sure on difference

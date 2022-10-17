@@ -49,7 +49,7 @@ def initialise(config):
     #read in either .avi or .tif files
     #   paired with if/else at beginning of frame-by-frame read
     #   clunky but works for now
-    #       some possibility to have orphaned variables - eg. vidcap doesn't exist if filetype is tif
+    #       some risk of orphaned variables - eg. vidcap doesn't exist if filetype is tif
 
     #if filetype is avi, read frame-by-frame from avi
     if ftype == ".avi":
