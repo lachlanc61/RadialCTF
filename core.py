@@ -79,7 +79,8 @@ while success:
     #READ NEXT FRAME
     #filetype switcher again - read .avi and .tif differently
     #   paired with switcher at top of main 
-    #   - be very careful that all branches send the same results downstream
+    #   - be very careful that all cases send the same results downstream
+
     if ftype == ".avi":
         #read a frame from the avi, returning success
         success,readimage = vidcap.read()
@@ -112,7 +113,7 @@ while success:
 
     # Check if image is rgb (shape=3 means 3-channels)
     #   and convert to grayscale if needed
-    # error if more than 3 channels (eg. alpha channel)
+    # error if more than 3 channels (ie. +alpha channel)
     # continue as-is if two channels (ie. mono+alpha)
 
     if len(readimage.shape) == 3:
@@ -312,7 +313,6 @@ while success:
 
 #    print("et, fc, times", etime, framecount, times[framecount])
 #   would be useful to report difference between sector ctfs as well
-
 
  #output the final figure for this frame
     fig.savefig(os.path.join(odir, ("out_%s.png" % framecount)), dpi=300)
